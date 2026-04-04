@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.egg-info/
+dist/
+build/
+data/source_clips/
+data/corrupted/
+data/sfx_library/
+outputs/
+report/*.pdf
+report/*.aux
+report/*.log
+report/*.out
+.DS_Store
