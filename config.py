@@ -1,4 +1,14 @@
 import os
+from pathlib import Path
+
+# Load .env file if present
+_env_path = Path(__file__).parent / ".env"
+if _env_path.exists():
+    for line in _env_path.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, value = line.partition("=")
+            os.environ.setdefault(key.strip(), value.strip())
 
 # API Configuration
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
