@@ -14,10 +14,21 @@ from config import OUTPUT_DIR, PLOTS_DIR
 class ModelComparator:
     """Analyzes results from both models to surface differential failure modes."""
 
-    def __init__(self, variants: list, signal_results: dict, gemini_results: dict):
+    def __init__(
+        self,
+        variants: list,
+        signal_results: dict,
+        gemini_results: dict,
+        report_path: str | None = None,
+        plots_dir: str | None = None,
+        plot_prefix: str = "",
+    ):
         self.variants = variants
         self.signal = signal_results
         self.gemini = gemini_results
+        self.report_path = report_path or os.path.join(OUTPUT_DIR, "comparison_report.json")
+        self.plots_dir = plots_dir or PLOTS_DIR
+        self.plot_prefix = plot_prefix
 
     def run_all(self) -> dict:
         """Run all analyses and return combined report."""
@@ -28,11 +39,11 @@ class ModelComparator:
             "difficulty_calibration": self.difficulty_calibration(),
         }
 
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        report_path = os.path.join(OUTPUT_DIR, "comparison_report.json")
-        with open(report_path, "w") as f:
+        report_dir = os.path.dirname(self.report_path) or "."
+        os.makedirs(report_dir, exist_ok=True)
+        with open(self.report_path, "w") as f:
             json.dump(report, f, indent=2, default=str)
-        print(f"Comparison report saved to {report_path}")
+        print(f"Comparison report saved to {self.report_path}")
 
         self._print_summary(report)
         self._generate_plots()
@@ -177,7 +188,7 @@ class ModelComparator:
             print("  [matplotlib not available, skipping plots]")
             return
 
-        os.makedirs(PLOTS_DIR, exist_ok=True)
+        os.makedirs(self.plots_dir, exist_ok=True)
         sns.set_theme(style="whitegrid")
 
         # Per-seed severity curves
@@ -215,7 +226,7 @@ class ModelComparator:
 
             fig, ax = plt.subplots(figsize=(8, 5))
             ax.plot(sevs, sig_acc, "o-", label="Signal Pipeline", color="#2196F3")
-            ax.plot(sevs, gem_acc, "s--", label="Gemini Flash", color="#FF5722")
+            ax.plot(sevs, gem_acc, "s--", label="Gemini 2.5 Flash", color="#FF5722")
             ax.set_xlabel("Corruption Severity")
             ax.set_ylabel("Detection Accuracy")
             ax.set_title(f"Seed {seed_id}: Detection Accuracy vs Severity")
@@ -223,7 +234,10 @@ class ModelComparator:
             ax.legend()
             ax.axhspan(0.35, 0.75, alpha=0.1, color="green", label="Discriminating band")
             fig.tight_layout()
-            fig.savefig(os.path.join(PLOTS_DIR, f"severity_curve_{seed_id}.png"), dpi=150)
+            fig.savefig(
+                os.path.join(self.plots_dir, f"{self.plot_prefix}severity_curve_{seed_id}.png"),
+                dpi=150,
+            )
             plt.close(fig)
 
         # Tier comparison bar chart
@@ -243,7 +257,7 @@ class ModelComparator:
         x = np.arange(len(tiers))
         w = 0.35
         ax.bar(x - w / 2, sig_means, w, label="Signal Pipeline", color="#2196F3")
-        ax.bar(x + w / 2, gem_means, w, label="Gemini Flash", color="#FF5722")
+        ax.bar(x + w / 2, gem_means, w, label="Gemini 2.5 Flash", color="#FF5722")
         ax.set_xticks(x)
         ax.set_xticklabels([f"Tier {t}" for t in tiers])
         ax.set_ylabel("Detection Accuracy")
@@ -251,7 +265,7 @@ class ModelComparator:
         ax.set_ylim(0, 1.05)
         ax.legend()
         fig.tight_layout()
-        fig.savefig(os.path.join(PLOTS_DIR, "tier_comparison.png"), dpi=150)
+        fig.savefig(os.path.join(self.plots_dir, f"{self.plot_prefix}tier_comparison.png"), dpi=150)
         plt.close(fig)
 
-        print(f"  Plots saved to {PLOTS_DIR}/")
+        print(f"  Plots saved to {self.plots_dir}/")

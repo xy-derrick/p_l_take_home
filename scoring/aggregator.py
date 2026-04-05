@@ -4,65 +4,78 @@ from __future__ import annotations
 
 import csv
 import os
-from dataclasses import asdict
 
 from config import OUTPUT_TSV
 
 
-def aggregate_results(variants: list, signal_results: dict, gemini_results: dict,
-                      output_path: str | None = None) -> list[dict]:
-    """Combine signal and gemini scores into a flat table.
-
-    Each variant gets TWO rows (one per model).
-    Returns list of row dicts and writes TSV.
-    """
+def aggregate_results(
+    variants: list,
+    signal_results: dict,
+    gemini_results: dict,
+    output_path: str | None = None,
+) -> list[dict]:
+    """Combine signal and Gemini scores into a flat TSV table."""
     if output_path is None:
         output_path = OUTPUT_TSV
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     columns = [
-        "task_id", "seed_id", "task_description", "source_clip", "audio_pillar",
-        "tier", "corruption_type", "corruption_severity", "model",
-        "av_sync_score", "artifact_quality_score", "speaker_consistency_score",
-        "semantic_match_score", "music_coherence_score",
-        "detection_correct", "ground_truth_label",
+        "task_id",
+        "seed_id",
+        "dataset",
+        "task_description",
+        "source_clip",
+        "visual_context",
+        "audio_pillar",
+        "tier",
+        "corruption_type",
+        "corruption_severity",
+        "model",
+        "av_sync_score",
+        "artifact_quality_score",
+        "speaker_consistency_score",
+        "semantic_match_score",
+        "music_coherence_score",
+        "detection_correct",
+        "ground_truth_label",
     ]
 
     rows = []
-    for v in variants:
-        gt = v.ground_truth or {}
+    for variant in variants:
+        gt = variant.ground_truth or {}
         corruption_type = gt.get("corruption_type", "none")
-        # Extract a severity value
-        severity = _extract_severity(v)
-        gt_label = "clean" if v.is_clean else corruption_type
-        description = f"{v.seed_id}: {corruption_type} on {v.source_clip_name}"
+        severity = _extract_severity(variant)
+        gt_label = "clean" if variant.is_clean else corruption_type
+        description = f"{variant.seed_id}: {corruption_type} on {variant.source_dataset}/{variant.source_clip_name}"
 
-        for model_name, results in [("signal_pipeline", signal_results),
-                                     ("gemini_flash", gemini_results)]:
-            scores = results.get(v.task_id, {})
-            row = {
-                "task_id": v.task_id,
-                "seed_id": v.seed_id,
-                "task_description": description,
-                "source_clip": v.source_clip_name,
-                "audio_pillar": v.audio_pillar,
-                "tier": v.tier,
-                "corruption_type": corruption_type,
-                "corruption_severity": severity,
-                "model": model_name,
-                "av_sync_score": scores.get("av_sync_score", 5),
-                "artifact_quality_score": scores.get("artifact_quality_score", 5),
-                "speaker_consistency_score": scores.get("speaker_consistency_score", 5),
-                "semantic_match_score": scores.get("semantic_match_score", 5),
-                "music_coherence_score": scores.get("music_coherence_score", 5),
-                "detection_correct": scores.get("detection_correct", False),
-                "ground_truth_label": gt_label,
-            }
-            rows.append(row)
+        for model_name, results in [("signal_pipeline", signal_results), ("gemini_2_5_flash", gemini_results)]:
+            scores = results.get(variant.task_id, {})
+            rows.append(
+                {
+                    "task_id": variant.task_id,
+                    "seed_id": variant.seed_id,
+                    "dataset": variant.source_dataset,
+                    "task_description": description,
+                    "source_clip": variant.source_clip_name,
+                    "visual_context": variant.has_visual_context(),
+                    "audio_pillar": variant.audio_pillar,
+                    "tier": variant.tier,
+                    "corruption_type": corruption_type,
+                    "corruption_severity": severity,
+                    "model": model_name,
+                    "av_sync_score": scores.get("av_sync_score", 5),
+                    "artifact_quality_score": scores.get("artifact_quality_score", 5),
+                    "speaker_consistency_score": scores.get("speaker_consistency_score", 5),
+                    "semantic_match_score": scores.get("semantic_match_score", 5),
+                    "music_coherence_score": scores.get("music_coherence_score", 5),
+                    "detection_correct": scores.get("detection_correct", False),
+                    "ground_truth_label": gt_label,
+                }
+            )
 
-    with open(output_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=columns, delimiter="\t")
+    with open(output_path, "w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=columns, delimiter="\t")
         writer.writeheader()
         writer.writerows(rows)
 

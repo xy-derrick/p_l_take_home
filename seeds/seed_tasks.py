@@ -1,5 +1,7 @@
 """Five seed task definitions with ground truth specifications."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 
 
@@ -15,10 +17,15 @@ class SeedTask:
     corruption_params: dict
     ground_truth_type: str  # "exact" | "measured" | "semantic"
     ground_truth_extraction: str
-    question_template: str
+    video_question_template: str
+    audio_question_template: str
     signal_metric: str
     pass_criteria: str
     compatible_clip_types: list[str] = field(default_factory=list)
+
+    def prompt_template(self, has_visual_context: bool) -> str:
+        """Return the appropriate question template for the available modality."""
+        return self.video_question_template if has_visual_context else self.audio_question_template
 
 
 SEED_TASKS: dict[str, SeedTask] = {
@@ -33,9 +40,14 @@ SEED_TASKS: dict[str, SeedTask] = {
         corruption_params={"offset_ms": 200},
         ground_truth_type="exact",
         ground_truth_extraction="The injected offset in milliseconds is the ground truth.",
-        question_template=(
+        video_question_template=(
             "Watch this video clip. Is the audio synchronized with the visual events? "
             "If not, estimate by how much the audio leads or lags the visuals in milliseconds. "
+            'Respond with JSON: {{"synced": bool, "offset_ms": int, "confidence": float}}'
+        ),
+        audio_question_template=(
+            "This benchmark instance is running in audio-only fallback mode. "
+            "Does the soundtrack sound artificially shifted or delayed relative to its internal timing? "
             'Respond with JSON: {{"synced": bool, "offset_ms": int, "confidence": float}}'
         ),
         signal_metric="cross_correlation_lag_ms",
@@ -53,8 +65,14 @@ SEED_TASKS: dict[str, SeedTask] = {
         corruption_params={"swap_point_s": 5.0},
         ground_truth_type="measured",
         ground_truth_extraction="Known swap point and speaker difference (frequency ratio).",
-        question_template=(
-            "Listen to the speakers in this clip. Does the same person speak throughout, "
+        video_question_template=(
+            "Watch and listen to the speaker in this clip. Does the same person speak throughout, "
+            "or does the speaker identity change at some point? If it changes, at approximately "
+            "what timestamp? Respond with JSON: "
+            '{{"consistent": bool, "change_timestamp_s": float, "confidence": float}}'
+        ),
+        audio_question_template=(
+            "Listen to the speaker or speakers in this clip. Does the same person speak throughout, "
             "or does the speaker identity change at some point? If it changes, at approximately "
             "what timestamp? Respond with JSON: "
             '{{"consistent": bool, "change_timestamp_s": float, "confidence": float}}'
@@ -74,12 +92,17 @@ SEED_TASKS: dict[str, SeedTask] = {
         corruption_params={"shift_ms": 200},
         ground_truth_type="exact",
         ground_truth_extraction="The injected shift amount and original event timestamps.",
-        question_template=(
+        video_question_template=(
             "Watch and listen to this clip. Are the sound effects properly timed with the "
             "visual events? Identify any sounds that occur too early or too late relative to "
             "what you see. Respond with JSON: "
             '{{"aligned": bool, "misaligned_events": [{{"description": str, "offset_ms": int}}], '
             '"confidence": float}}'
+        ),
+        audio_question_template=(
+            "This benchmark instance is running in audio-only fallback mode. "
+            "Do the sound effects sound artificially mistimed or shifted relative to the rest of the clip? "
+            'Respond with JSON: {{"aligned": bool, "misaligned_events": [{{"description": str, "offset_ms": int}}], "confidence": float}}'
         ),
         signal_metric="onset_detection_delta_ms",
         pass_criteria="Model correctly identifies aligned vs. misaligned.",
@@ -96,7 +119,13 @@ SEED_TASKS: dict[str, SeedTask] = {
         corruption_params={"artifact_type": "click", "severity": 0.5},
         ground_truth_type="exact",
         ground_truth_extraction="Exact artifact locations and types as injected.",
-        question_template=(
+        video_question_template=(
+            "Watch and listen to this clip. Are there any artifacts, glitches, clicks, dropouts, or "
+            "unnatural sounds? If so, describe them and note approximately when they occur. "
+            'Respond with JSON: {{"clean": bool, "artifacts": [{{"type": str, '
+            '"timestamp_s": float, "severity": str}}], "confidence": float}}'
+        ),
+        audio_question_template=(
             "Listen to this audio. Are there any artifacts, glitches, clicks, dropouts, or "
             "unnatural sounds? If so, describe them and note approximately when they occur. "
             'Respond with JSON: {{"clean": bool, "artifacts": [{{"type": str, '
@@ -117,11 +146,16 @@ SEED_TASKS: dict[str, SeedTask] = {
         corruption_params={"mood_distance": 0.8},
         ground_truth_type="measured",
         ground_truth_extraction="Mood distance between original and replacement track.",
-        question_template=(
+        video_question_template=(
             "Watch this scene and listen to the background music. Does the music's mood "
             "(energy, emotion, tempo) match the visual scene? Rate the match from 1 "
             "(completely wrong mood) to 5 (perfect match). Respond with JSON: "
             '{{"mood_match_score": int, "scene_mood": str, "music_mood": str, "explanation": str}}'
+        ),
+        audio_question_template=(
+            "This benchmark instance is running in audio-only fallback mode. "
+            "Judge whether the background music feels coherent with the rest of the soundtrack. "
+            'Respond with JSON: {{"mood_match_score": int, "scene_mood": str, "music_mood": str, "explanation": str}}'
         ),
         signal_metric="spectral_centroid_tempo_proxy",
         pass_criteria="Model score correlates with actual mood distance (r > 0.5).",

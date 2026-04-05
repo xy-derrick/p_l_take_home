@@ -1,101 +1,141 @@
 # Audio Quality Verification Benchmark for AI-Generated Video
 
 ## Overview
-Evaluation infrastructure for detecting audio failures in AI-generated video.
-Tests audio quality across three pillars (Voice, Sound Effects, Music) using
-a corruption-based benchmark approach with two judge models.
+This repo builds a corruption-based benchmark for audio failures in AI-generated video.
+It supports two source modes:
+
+- `synthetic`: fully local WAV generation with exact ground truth
+- `real-video`: public-dataset clips prepared as MP4 + WAV pairs and sent to Gemini as video
+
+The benchmark compares two judges:
+
+- `SignalScorer`: deterministic mock of a modular signal-processing pipeline
+- `GeminiScorer`: OpenRouter-based multimodal judge configured for `google/gemini-2.5-flash-preview`, with video input when available and mock fallback otherwise
+
+## Supported Datasets
+- `synthetic`: generated locally, no external assets required
+- `ava`: intended for speech / active-speaker clips
+- `greatest_hits`: intended for visually grounded impact / SFX clips (not implemented)
+- `condensed_movies`: intended for scene-level music / mood clips (not implemented)
+
+Real-video datasets are prepared from local manifest files under `data/manifests/`.
 
 ## Quick Start
 ```bash
 pip install -r requirements.txt
-python cli.py run          # Full pipeline: generate → score → compare
+python cli.py run --datasets synthetic
 ```
 
-## Architecture
-- **Corruption-based evaluation**: inject known audio failures into clean clips
-  at controlled severity levels
-- **Two judge models compared**:
-  - Signal processing pipeline (librosa-based measurements)
-  - Gemini 2.5 Flash (semantic VLM judgment, via OpenRouter)
-- **5 seed tasks** expanded to 500+ variants via parameterized severity scaling
-- **9 failure modes** across 3 pillars (voice, SFX, music) and 3 detection tiers
-
-## Pipeline Stages
-1. **Generate** — synthetic source clips with mathematically exact ground truth
-2. **Expand** — 5 seeds × 15 clips × 5-10 severity levels → 500+ variants
-3. **Corrupt** — apply controlled audio failures (sync shift, speaker swap, artifacts, SFX mistime, mood swap)
-4. **Score** — evaluate with both signal pipeline and Gemini (mock or real API)
-5. **Compare** — divergence analysis, tier-level performance, severity curves
-
-## CLI Commands
+## Real-Video Workflow
+1. Put raw dataset videos somewhere under `data/raw_videos/<dataset>/` or reference absolute paths.
+2. Create a manifest file:
+   - `data/manifests/ava_clips.jsonl`
+   - `data/manifests/greatest_hits_clips.jsonl`
+   - `data/manifests/condensed_movies_clips.jsonl`
+3. Extract prepared clips:
 ```bash
-python cli.py run                # Full pipeline (default: mock mode)
-python cli.py run --seeds S1,S2  # Run specific seeds only
-python cli.py run --no-mock      # Use real Gemini API (requires OPENROUTER_API_KEY)
-python cli.py generate           # Generate source clips only
-python cli.py compare            # View comparison report
+python cli.py prepare-datasets --datasets ava,greatest_hits
+python cli.py extract-clips --datasets ava,greatest_hits
 ```
+4. Run the benchmark:
+```bash
+python cli.py run --datasets ava,greatest_hits --no-mock
+```
+
+## Cmd Download Helpers
+All helper scripts below are runnable from `cmd.exe`:
+
+```cmd
+cd /d F:\philo_lab\audio-eval
+
+scripts\download_ava_subset.cmd --count 10 --skip-existing
+scripts\build_ava_manifest.cmd --max-clips-per-video 3
+
+scripts\download_greatest_hits.cmd --variant lowres --extract --skip-existing
+scripts\build_greatest_hits_manifest.cmd --max-clips-per-video 3
+```
+
+The AVA downloader writes to:
+
+- `data\raw_videos\ava\videos`
+- `data\raw_videos\ava\annotations`
+
+The Greatest Hits downloader writes to:
+
+- `data\raw_videos\greatest_hits`
+
+You can then run:
+
+```cmd
+python cli.py prepare-datasets --datasets ava,greatest_hits
+python cli.py run --datasets ava,greatest_hits --mock
+```
+
+## Manifest Schema
+Each manifest record can be JSONL, JSON, or CSV and should contain at least:
+
+```json
+{
+  "clip_id": "ava_speaker_0001",
+  "video_path": "data/raw_videos/ava/example.mp4",
+  "start_s": 12.0,
+  "end_s": 20.0,
+  "clip_type": "speech",
+  "event_timestamps_s": [14.2, 16.7],
+  "mood": {"valence": 0.3, "energy": 0.8, "tempo_bpm": 132},
+  "caption": "A woman speaks directly to camera."
+}
+```
+
+Relevant optional fields by dataset:
+
+- `ava`: `clip_type="speech"` and any speech / speaker metadata
+- `greatest_hits`: `clip_type="sfx"` plus `event_timestamps_s`
+- `condensed_movies`: `clip_type="music"` or `clip_type="mixed"` plus `mood`
+
+## CLI
+```bash
+python cli.py generate --datasets synthetic
+python cli.py prepare-datasets --datasets ava,greatest_hits
+python cli.py extract-clips --datasets condensed_movies
+python cli.py run --datasets synthetic
+python cli.py run --datasets ava,greatest_hits --seeds S1,S3,S4 --no-mock
+python cli.py compare
+```
+
+Useful flags:
+
+- `--datasets synthetic,ava,...`
+- `--limit-per-dataset 10`
+- `--force-prepare`
+- `--mock` / `--no-mock`
+
+## Corruption Examples
+You can generate one example corrupted WAV directly from `cmd.exe`:
+
+```cmd
+cd /d F:\philo_lab\audio-eval
+
+scripts\generate_corruption_example.cmd sync_shift --input data\source_clips\synthetic\speech_00.wav --output data\corrupted\examples\sync_shift.wav --offset-ms 200
+scripts\generate_corruption_example.cmd speaker_swap --input data\source_clips\synthetic\speech_00.wav --output data\corrupted\examples\speaker_swap.wav --swap-point-s 2.5 --replacement-freq 440
+scripts\generate_corruption_example.cmd artifact_inject --input data\source_clips\synthetic\speech_00.wav --output data\corrupted\examples\artifact_click.wav --artifact-type click --timestamps 0.5,1.5 --severity 0.7
+scripts\generate_corruption_example.cmd sfx_mistime --input data\source_clips\synthetic\sfx_00.wav --output data\corrupted\examples\sfx_mistime.wav --shift-ms 200 --event-timestamps 0.6,1.4
+scripts\generate_corruption_example.cmd music_mood_swap --input data\source_clips\synthetic\music_00.wav --output data\corrupted\examples\music_mood_swap.wav --original-valence 0.2 --original-energy 0.8 --original-tempo-bpm 90 --mood-distance 0.8
+```
+
+Each command also writes a sibling JSON file containing the corruption metadata.
+
+## Gemini Input Mode
+- If a variant has real video context, Gemini receives a base64 `video_url` MP4 payload.
+- If no video is available, Gemini falls back to `input_audio` WAV.
 
 ## Outputs
-- `outputs/tasks_and_rubrics.tsv` — full results matrix (2 rows per variant, one per model)
-- `outputs/comparison_report.json` — model comparison analysis
-- `outputs/plots/` — severity-accuracy curves per seed, tier comparison chart
-- `report/report.pdf` — research report (compile with `make -C report/`)
+- `outputs/tasks_and_rubrics.tsv`: per-variant results, two rows per variant
+- `outputs/comparison_report.json`: comparator summary
+- `outputs/plots/`: severity and tier plots
+- `logs/latest_judge_scores.jsonl`: one JSON record per model score, including full Gemini responses when available
 
-## Key Design Decisions
-- **Mock mode is first-class**: entire pipeline runs without API keys or network
-- **Ground truth is exact**: every corruption has programmatically verifiable truth
-- **The comparison is the insight**: the value is WHERE the two models diverge
-- **Tiered rubric**: 5 dimensions × 5-point scale = structured reward signal
-
-## Environment
-```bash
-# Optional: set for real Gemini API calls
-export OPENROUTER_API_KEY="your-key-here"
-```
-
-## Project Structure
-```
-audio-eval/
-├── cli.py                      # Main entry point
-├── config.py                   # Configuration and thresholds
-├── data/
-│   ├── generate_source_clips.py  # Synthetic audio generation
-│   ├── source_clips/             # Generated clean clips
-│   ├── corrupted/                # Corrupted variants
-│   └── sfx_library/             # Replacement tracks
-├── taxonomy/
-│   └── failure_modes.py        # 9 failure mode definitions
-├── seeds/
-│   └── seed_tasks.py           # 5 seed task specifications
-├── corruption/
-│   ├── sync_shift.py           # A/V sync drift
-│   ├── speaker_swap.py         # Speaker identity change
-│   ├── artifact_inject.py      # Click/dropout/spectral artifacts
-│   ├── sfx_mistime.py          # SFX temporal shift
-│   └── music_mood_swap.py      # Mood-mismatched music
-├── expansion/
-│   └── variant_generator.py    # Seed → 500+ variant expansion
-├── scoring/
-│   ├── rubric.py               # 5-dimension rubric definitions
-│   ├── signal_scorer.py        # Signal processing pipeline
-│   ├── gemini_scorer.py        # Gemini VLM scorer (+ mock)
-│   └── aggregator.py           # Combine and write TSV
-├── evaluation/
-│   ├── runner.py               # Pipeline orchestration
-│   └── comparator.py           # Model comparison analysis
-├── outputs/                    # Generated results
-└── report/
-    ├── report.tex              # LaTeX research report
-    └── Makefile
-```
-
-## Agent Prompts Used
-This project was built using Claude Code with a single comprehensive prompt
-covering architecture, implementation details, mock behavior specifications,
-and report structure. The prompt defined the corruption-based evaluation
-approach, two-model comparison strategy, and tiered failure taxonomy.
-
-## API Costs
-- Mock mode: $0 (no API calls)
-- Full Gemini mode: estimated $5-15 for 500+ variants at ~$0.01-0.03 per call
+## Notes
+- Mock mode is first-class and keeps the repo runnable without network access.
+- Synthetic mode remains the default fallback when no dataset clips are prepared.
+- Corruption modules still operate on WAV audio; for real-video clips the runner remuxes corrupted audio back onto MP4 before Gemini scoring.
