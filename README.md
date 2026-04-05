@@ -284,6 +284,41 @@ tracks the spec closely; deviations (real signal processing replacing mocked sig
 scorers, SHA-256-based seeding replacing `random.seed(hash(...))`, keyword-only
 corruption function args, etc.) are documented in git history.
 
+## How This Was Built: Dual-Agent Workflow
+
+This project was completed entirely through AI coding agents — no code was written manually.
+Two agents played complementary roles throughout:
+
+**Claude Code** (Anthropic) handled the full implementation lifecycle. Given
+[claude_code_prompt.md](./claude_code_prompt.md) as the initial spec, it generated the
+entire repository structure, all Python modules, the CLI, the LaTeX report, and the
+test suite. It also iterated on the implementation in response to review findings —
+replacing mocked signal scorers with real librosa-based signal processing, fixing
+seeding to use SHA-256 instead of `hash()`, upgrading the JSON parser in the VLM scorer
+to handle markdown code fences and float rubric values, and rewriting the report to
+incorporate actual experiment results with correct numbers.
+
+**Codex** (OpenAI) ran the benchmark experiments. It executed the pipeline end-to-end
+with `--no-mock` against real AVA and Greatest Hits dataset clips, making actual
+OpenRouter API calls to Gemini 2.5 Flash, and saved the per-seed JSONL judge logs,
+comparison JSONs, and TSVs now committed under `report/`. It also performed a
+post-experiment audit of the codebase and report, identifying three concrete issues
+(duplicate severity level in S3, wrong VLM modality description in the report, stale
+divergence count) that Claude Code then patched.
+
+**Communication between agents was entirely through shared artifacts** — there was no
+direct agent-to-agent channel. The workflow was:
+
+1. Claude Code produces code → committed to git
+2. Codex reads the git repo, runs the pipeline, saves result files → committed to git
+3. Codex reads result files + source code → produces a structured findings report
+4. Claude Code reads the findings report → patches code and report
+
+The spec file (`claude_code_prompt.md`) served as the shared ground truth that both
+agents referenced independently. The git repository was the shared workspace. Neither
+agent knew the other existed — they communicated only through the artifacts each left
+behind.
+
 ## Notes
 
 - synthetic mode is the default fallback if no real clips are available
