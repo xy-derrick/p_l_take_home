@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import time
 
 import numpy as np
@@ -21,6 +22,8 @@ class LanguageModelScorer:
     def __init__(self, force_mock: bool = False):
         self.api_key = OPENROUTER_API_KEY
         self.use_mock = force_mock or not self.api_key
+        self._last_call_time: float = 0.0
+        self._min_call_interval: float = 0.5  # 500 ms between API calls
 
     def score_variant(self, variant) -> dict:
         """Score a single task variant."""
@@ -35,11 +38,18 @@ class LanguageModelScorer:
         if seed is None:
             return self._mock_response(variant)
 
+        # Proactive rate limiting
+        now = time.time()
+        wait = self._min_call_interval - (now - self._last_call_time)
+        if wait > 0:
+            time.sleep(wait)
+
         prompt = self._build_prompt(variant, seed)
         messages = [{"role": "user", "content": self._build_content(variant, prompt)}]
 
         for attempt in range(3):
             try:
+                self._last_call_time = time.time()
                 response = requests.post(
                     f"{OPENROUTER_BASE_URL}/chat/completions",
                     headers={
@@ -64,6 +74,9 @@ class LanguageModelScorer:
                 print(f"  [Model API error for {variant.task_id}: {exc}, falling back to mock]")
                 return self._mock_response(variant)
 
+        # Defensive fallback — should not be reached
+        return self._mock_response(variant)
+
     def _build_content(self, variant, prompt: str) -> list[dict]:
         content = [{"type": "text", "text": prompt}]
         video_path = variant.corrupted_video_path or variant.ground_truth.get("corrupted_video_path")
@@ -85,14 +98,17 @@ class LanguageModelScorer:
             or variant.ground_truth.get("corrupted_path")
             or variant.source_audio_path
         )
+        if not audio_path or not os.path.exists(audio_path):
+            # No usable audio file; return text-only content
+            return content
         with open(audio_path, "rb") as handle:
             audio_b64 = base64.b64encode(handle.read()).decode("utf-8")
+        # OpenRouter/Gemini expects audio via audio_url with a data URI
         content.append(
             {
-                "type": "input_audio",
-                "input_audio": {
-                    "data": audio_b64,
-                    "format": "wav",
+                "type": "audio_url",
+                "audio_url": {
+                    "url": f"data:audio/wav;base64,{audio_b64}",
                 },
             }
         )
@@ -115,6 +131,30 @@ class LanguageModelScorer:
             '"semantic_match_score", "music_coherence_score"'
         )
 
+    def _extract_json(self, text: str) -> dict | None:
+        """Robustly extract the first balanced JSON object from model output."""
+        # Strip markdown code fences
+        clean = re.sub(r"```(?:json)?\s*", "", text)
+        clean = re.sub(r"```", "", clean).strip()
+        # Walk character-by-character to find the first balanced { ... }
+        depth = 0
+        start = None
+        for i, ch in enumerate(clean):
+            if ch == "{":
+                if start is None:
+                    start = i
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0 and start is not None:
+                    try:
+                        return json.loads(clean[start : i + 1])
+                    except json.JSONDecodeError:
+                        # Reset and keep searching
+                        start = None
+                        depth = 0
+        return None
+
     def _parse_response(self, text: str, variant) -> dict:
         """Extract structured scores from model output."""
         scores = {
@@ -125,33 +165,31 @@ class LanguageModelScorer:
             "music_coherence_score": 5,
             "detection_correct": False,
             "raw_response": text,
+            "raw_measurements": {},  # normalized schema (mirrors mock output)
         }
-        try:
-            start = text.index("{")
-            end = text.rindex("}") + 1
-            parsed = json.loads(text[start:end])
-            for key in [
-                "av_sync_score",
-                "artifact_quality_score",
-                "speaker_consistency_score",
-                "semantic_match_score",
-                "music_coherence_score",
-            ]:
-                if key in parsed:
-                    scores[key] = int(parsed[key])
-            if "synced" in parsed:
-                scores["detection_correct"] = (not parsed.get("synced", True)) if not variant.is_clean else parsed.get("synced", True)
-            elif "consistent" in parsed:
-                scores["detection_correct"] = (not parsed.get("consistent", True)) if not variant.is_clean else parsed.get("consistent", True)
-            elif "aligned" in parsed:
-                scores["detection_correct"] = (not parsed.get("aligned", True)) if not variant.is_clean else parsed.get("aligned", True)
-            elif "clean" in parsed:
-                scores["detection_correct"] = (not parsed.get("clean", True)) if not variant.is_clean else parsed.get("clean", True)
-            elif "mood_match_score" in parsed:
-                mood_score = parsed["mood_match_score"]
-                scores["detection_correct"] = (mood_score <= 3) if not variant.is_clean else (mood_score >= 4)
-        except (ValueError, json.JSONDecodeError):
-            pass
+        parsed = self._extract_json(text)
+        if parsed is None:
+            return scores
+        for key in [
+            "av_sync_score",
+            "artifact_quality_score",
+            "speaker_consistency_score",
+            "semantic_match_score",
+            "music_coherence_score",
+        ]:
+            if key in parsed:
+                scores[key] = int(float(parsed[key]))  # tolerate float values
+        if "synced" in parsed:
+            scores["detection_correct"] = (not parsed.get("synced", True)) if not variant.is_clean else parsed.get("synced", True)
+        elif "consistent" in parsed:
+            scores["detection_correct"] = (not parsed.get("consistent", True)) if not variant.is_clean else parsed.get("consistent", True)
+        elif "aligned" in parsed:
+            scores["detection_correct"] = (not parsed.get("aligned", True)) if not variant.is_clean else parsed.get("aligned", True)
+        elif "clean" in parsed:
+            scores["detection_correct"] = (not parsed.get("clean", True)) if not variant.is_clean else parsed.get("clean", True)
+        elif "mood_match_score" in parsed:
+            mood_score = float(parsed["mood_match_score"])
+            scores["detection_correct"] = (mood_score <= 3) if not variant.is_clean else (mood_score >= 4)
         return scores
 
     def _mock_response(self, variant) -> dict:
@@ -167,6 +205,7 @@ class LanguageModelScorer:
             "semantic_match_score": 5,
             "music_coherence_score": 5,
             "detection_correct": False,
+            "raw_response": "",        # normalized schema (mirrors API output)
             "raw_measurements": {},
         }
 
@@ -194,12 +233,13 @@ class LanguageModelScorer:
     def _mock_sync(self, variant, scores, rng) -> dict:
         true_offset = abs(variant.ground_truth.get("offset_ms", 0))
         measured = max(0.0, true_offset + rng.normal(0, 200))
+        # Deterministic probabilities — single RNG draw for the detection decision
         if true_offset < 100:
-            det_prob = 0.40 + rng.uniform(0, 0.20)
+            det_prob = 0.50
         elif true_offset < 300:
-            det_prob = 0.70 + rng.uniform(0, 0.15)
+            det_prob = 0.78
         else:
-            det_prob = 0.90 + rng.uniform(0, 0.08)
+            det_prob = 0.94
         scores["detection_correct"] = rng.random() < det_prob
         if measured > 500:
             scores["av_sync_score"] = 1
@@ -216,12 +256,13 @@ class LanguageModelScorer:
 
     def _mock_speaker(self, variant, scores, rng) -> dict:
         similarity = variant.ground_truth.get("similarity_score", 1.0)
+        # Deterministic probabilities — single RNG draw for the detection decision
         if similarity < 0.5:
-            det_prob = 0.80 + rng.uniform(0, 0.10)
+            det_prob = 0.85
         elif similarity < 0.7:
-            det_prob = 0.60 + rng.uniform(0, 0.10)
+            det_prob = 0.65
         else:
-            det_prob = 0.50 + rng.uniform(0, 0.10)
+            det_prob = 0.55
         scores["detection_correct"] = rng.random() < det_prob
         if similarity < 0.3:
             scores["speaker_consistency_score"] = 1
@@ -239,12 +280,13 @@ class LanguageModelScorer:
 
     def _mock_artifacts(self, variant, scores, rng) -> dict:
         severity = variant.ground_truth.get("severity", 0.5)
+        # Deterministic probabilities — single RNG draw for the detection decision
         if severity < 0.3:
-            det_prob = 0.40 + rng.uniform(0, 0.20)
+            det_prob = 0.50
         elif severity < 0.6:
-            det_prob = 0.70 + rng.uniform(0, 0.15)
+            det_prob = 0.78
         else:
-            det_prob = 0.90 + rng.uniform(0, 0.08)
+            det_prob = 0.94
         scores["detection_correct"] = rng.random() < det_prob
         if severity > 0.7:
             scores["artifact_quality_score"] = 1
@@ -259,12 +301,13 @@ class LanguageModelScorer:
     def _mock_sfx(self, variant, scores, rng) -> dict:
         shift_ms = abs(variant.ground_truth.get("shift_ms", 0))
         measured = max(0.0, shift_ms + rng.normal(0, 200))
+        # Deterministic probabilities — single RNG draw for the detection decision
         if shift_ms < 100:
-            det_prob = 0.40 + rng.uniform(0, 0.20)
+            det_prob = 0.50
         elif shift_ms < 300:
-            det_prob = 0.70 + rng.uniform(0, 0.15)
+            det_prob = 0.78
         else:
-            det_prob = 0.90 + rng.uniform(0, 0.08)
+            det_prob = 0.94
         scores["detection_correct"] = rng.random() < det_prob
         if measured > 500:
             scores["av_sync_score"] = 1
@@ -281,12 +324,13 @@ class LanguageModelScorer:
     def _mock_mood(self, variant, scores, rng) -> dict:
         mood_dist = variant.ground_truth.get("mood_distance", 0.0)
         measured = np.clip(mood_dist + rng.normal(0, 0.15), 0, 1)
+        # Deterministic probabilities — single RNG draw for the detection decision
         if mood_dist > 0.6:
-            det_prob = 0.60 + rng.uniform(0, 0.20)
+            det_prob = 0.70
         elif mood_dist > 0.3:
-            det_prob = 0.50 + rng.uniform(0, 0.15)
+            det_prob = 0.58
         else:
-            det_prob = 0.40 + rng.uniform(0, 0.10)
+            det_prob = 0.45
         scores["detection_correct"] = rng.random() < det_prob
         if measured > 0.8:
             scores["music_coherence_score"] = 1

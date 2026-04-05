@@ -42,7 +42,7 @@ class TaskVariant:
 SEED_SEVERITY_MAP: dict[str, tuple[str, list]] = {
     "S1": ("offset_ms", SEVERITY_LEVELS["sync_drift_ms"]),
     "S2": ("replacement_freq", [120, 140, 160, 180, 200, 240, 280, 350, 450, 550]),
-    "S3": ("shift_ms", SEVERITY_LEVELS["sfx_shift_ms"] + [750, 1000, 1500, 2000]),
+    "S3": ("shift_ms", SEVERITY_LEVELS["sfx_shift_ms"] + [750, 1500, 2000]),
     "S4": ("severity", [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9, 1.0]),
     "S5": ("mood_distance", [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]),
 }

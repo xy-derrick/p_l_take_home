@@ -13,11 +13,12 @@ data/corrupted/
 data/sfx_library/
 data/raw_videos/
 outputs/
-report/
 report/*.pdf
 report/*.aux
 report/*.log
 report/*.out
+report/*.toc
+report/*.synctex.gz
 .DS_Store
 tests_tmp/
 logs/*.jsonl

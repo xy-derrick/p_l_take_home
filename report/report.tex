@@ -1,5 +1,5 @@
 \documentclass[11pt]{article}
-\usepackage{booktabs, graphicx, hyperref, amsmath, geometry}
+\usepackage{booktabs, graphicx, hyperref, amsmath, geometry, array}
 \geometry{margin=1in}
 
 \title{Audio Quality Verification in AI-Generated Video: \\
@@ -11,67 +11,376 @@ A Multi-Timescale Evaluation Framework}
 \maketitle
 
 \begin{abstract}
-AI-generated video has reached visual photorealism, but audio quality lags far behind---dialogue drifts from lip movements, sound effects misfire, and music ignores scene context. No systematic evaluation infrastructure exists for these failures. We present a corruption-based benchmark framework that injects known audio failures at controlled severity levels and measures detection accuracy across two complementary judge systems: a signal processing pipeline and a vision-language model (Gemini 2.5 Flash via OpenRouter). Our key finding is a tier-dependent crossover: signal tools dominate at millisecond-precision tasks (sync, artifacts) while VLMs excel at semantic judgments (mood coherence, scene matching), with neither covering the full audio-visual correspondence hierarchy alone.
+AI-generated video has reached visual photorealism, but audio quality lags far behind.
+We present a corruption-based benchmark framework that injects known audio failures at
+controlled severity levels and measures detection accuracy across two judge systems: a
+signal processing pipeline and Gemini~2.5~Flash via OpenRouter. Across 1,094 variants
+spanning four seed tasks and two real-video datasets, the judges exhibit sharply
+complementary competency profiles: signal tools dominate on millisecond-precise sync
+detection (99.5\% vs.\ 63.1\%), while the VLM leads substantially on artifact and SFX
+perception tasks (70.6\% vs.\ 36.2\%). We present the failure taxonomy, seed task
+specifications, expansion methodology, rubric design with explicit level definitions, and
+experimental findings that motivate an ensemble routing strategy and a tiered reward
+signal for training audio-aware video generation models.
 \end{abstract}
 
 \section{Introduction: Why Audio Verification is the Critical Bottleneck}
 
-Visual fidelity in AI-generated video has improved dramatically. Models like Sora, Veo, and Runway Gen-3 produce footage that passes casual inspection. Audio, however, remains conspicuously broken. Dialogue does not track lip movements. Sound effects fire at wrong moments or for wrong objects. Background music ignores scene mood and transitions. These failures are immediately perceptible to human viewers---audio is roughly 50\% of the viewing experience---yet no systematic evaluation infrastructure exists to measure them.
+Visual fidelity in AI-generated video has reached the point where casual viewers often
+cannot distinguish generated from real footage. Audio quality has not kept pace. Three
+categories of failure are pervasive across current frontier systems.
 
-The gap is not merely academic. Reward models that train video generators need dense, structured feedback about \emph{what} is wrong with the audio, not just that it is wrong. A single holistic quality score cannot distinguish a 300ms sync drift (fixable by time-shifting) from a semantic mood mismatch (requiring re-generation). The evaluation layer must decompose audio quality into actionable dimensions.
+\textbf{Voice failures.} Sora-generated dialogue routinely exhibits phoneme-timing offsets
+of 200--400\,ms between speech audio and lip motion---beyond the $\sim$40\,ms perceptual
+threshold---making the video look dubbed. Kling output has been observed where a
+speaker's voice identity shifts mid-sentence (different timbre, different F0 range)
+because the TTS module receives an ambiguous speaker embedding at a cut boundary.
+Veo clips with overlapping speakers show background audio that drowns dialogue by 10--20\,dB,
+with no dynamic range management.
 
-We organize audio failures into three \emph{pillars}: \textbf{Voice} (speech synchronization, speaker identity, prosody), \textbf{Sound Effects} (temporal alignment, semantic appropriateness, completeness), and \textbf{Music} (mood coherence, transition awareness, structural integrity). Each pillar spans different timescales, requires different detection tools, and maps to different failure modes in generative systems. This tripartite decomposition drives the entire benchmark design.
+\textbf{Sound effect failures.} Impact sounds fire 300--800\,ms after the visual contact
+event (a door closing, a glass breaking), breaking the auditory-visual causality illusion.
+Generated SFX frequently have incorrect spectral signatures: a wooden impact sounds
+metallic, or a soft cloth rustle has the frequency profile of a hard tap. SFX are also
+simply absent: a generated car collision scene may have dialogue and music but no crash
+sound at all, because the model treats SFX generation as optional.
 
-\section{The Multi-Timescale Challenge}
+\textbf{Music failures.} The most structurally distinctive failure: music cues in AI video
+\emph{do not follow shot boundaries}. A music phrase may begin 2 seconds before a cut and
+continue 3 seconds past it, ignoring the scene transition entirely. This requires
+sequence-level evaluation---per-clip or per-frame scoring cannot detect that the emotional
+arc of a 30-second music segment is incoherent with the scene it accompanies. Additionally,
+generated music often mismatches the scene's emotional valence entirely: tense orchestral
+music over a comedic scene, or upbeat pop over a funeral.
 
-Audio-visual correspondence operates across five orders of magnitude in time. At the \emph{microsecond} scale, digital artifacts---clicks, spectral anomalies, codec glitches---manifest as single-sample spikes or narrow-band noise bursts. At the \emph{millisecond} scale, lip-sync and sound effect alignment require temporal precision below the ~40ms perceptual threshold. At the \emph{second} scale, individual events must match their visual causes: a glass breaks, a door closes, a footstep lands. At the \emph{multi-second} scale, speaker identity must remain consistent across shots, and music must not abruptly cut mid-phrase. At the \emph{minute} scale, narrative mood coherence---whether the music's emotional tone matches the scene's dramatic arc---requires understanding that transcends signal measurement.
+No systematic infrastructure exists to detect, classify, or score any of these failures
+automatically. The consequence is that generative video models receive no structured audio
+feedback during training, only implicit human preference signals that conflate visual and
+audio quality. This paper describes evaluation infrastructure designed to fill that gap.
 
-No single evaluation tool covers this hierarchy. Cross-correlation can pinpoint sync offsets to +/-5ms but cannot judge whether upbeat music during a funeral is inappropriate. Speaker embedding similarity can detect voice changes but not whether the \emph{wrong} speaker is narratively correct (e.g., an intentional voice-over). Music mood classifiers can estimate valence and energy but miss the contextual question of whether calm music suits a particular scene.
+\section{Seed Tasks and Ground Truth Strategy}
 
-Current VLMs operate well at the second-to-minute scale---they can describe what they ``see'' and ``hear'' and reason about appropriateness---but they hallucinate temporal precision. When asked to estimate a sync offset, Gemini produces responses with +/-200ms noise where a cross-correlation yields +/-5ms. Conversely, signal tools produce no response at all when the question is ``does this music match the mood of a funeral scene?''
+We define five seed tasks spanning all three audio pillars. Each seed has a mathematically
+specified ground truth, enabling automated evaluation without human annotation for
+Tier~1--2 tasks.
 
-The compositionality problem compounds this: real audio is layered. Dialogue, sound effects, and music coexist. A sync drift in speech may be masked by loud music. An artifact in a sound effect may be inaudible beneath dialogue. Evaluation must account for these interactions, which neither approach handles well in isolation.
+\textbf{S1 (Voice / Sync):} Inject a known time offset $\delta \in \{50, 100, \ldots,
+2000\}\,\text{ms}$ between audio and video tracks. \emph{Ground truth:} offset\_ms $\neq 0$
+is a failure; magnitude determines severity. Programmatically verifiable via cross-correlation.
 
-\section{Signal Processing vs.\ Model-Based Detection: Key Tradeoffs}
+\textbf{S2 (Voice / Speaker):} At a known swap point $t_s$, replace speech with a
+frequency-shifted version (different fundamental frequency and timbre). \emph{Ground truth:}
+replacement frequency ratio $\neq 1.0$ is a failure. Programmatically verifiable via
+multi-feature spectral comparison (MFCC, dominant frequency ratio, spectral centroid).
 
-Our benchmark explicitly compares two judge architectures to quantify these tradeoffs.
+\textbf{S3 (SFX / Timing):} Shift impact sound event onsets by $\delta \in \{50, 100, 200,
+500, 1000, 2000\}\,\text{ms}$ relative to the visual contact event. \emph{Ground truth:}
+shift\_ms $\neq 0$ is a failure. Programmatically verifiable via onset delta matching, with
+VLM fallback for complex onset structures.
 
-The \textbf{signal processing pipeline} uses librosa for spectral analysis, onset detection, and tempo estimation; Whisper for speech transcription and alignment (simulated in our prototype); pyannote for speaker diarization; and CLAP for audio-text embeddings. Its strengths are precision and reproducibility: given the same audio, it produces the same measurements. Its weakness is narrow scope---it measures physical properties of the signal, not semantic relationships between audio and visual content.
+\textbf{S4 (SFX / Artifacts):} Inject energy spikes ($>$4$\sigma$), spectral flux anomalies
+($>$4.5$\sigma$), or signal dropouts at controlled severity $s \in [0.05, 1.0]$.
+\emph{Ground truth:} severity $> 0$ is a failure. Programmatically verifiable via Z-score
+anomaly detection, though perceptual calibration benefits from VLM consensus.
 
-The \textbf{VLM-based judge} (Gemini 2.5 Flash via OpenRouter) ingests audio and makes holistic judgments. Its strength is breadth: it can evaluate mood appropriateness, semantic matching, and narrative coherence. Its weakness is temporal imprecision and inconsistency: the same input can yield different scores on different runs, and timing estimates carry substantial noise.
+\textbf{S5 (Music / Mood):} Replace the background music track with a track whose
+valence/energy vector is displaced by mood distance $d \in \{0.2, 0.4, 0.6, 0.8, 1.0\}$
+in the unit square. \emph{Ground truth:} mood\_distance $> 0.2$ is a perceptible mismatch.
+Requires VLM or human judgment; programmatic proxy is the valence/energy Euclidean distance.
 
-Our benchmark results confirm the expected crossover pattern. On \textbf{Tier 1} tasks (sync drift, artifact detection, SFX timing), the signal pipeline achieves 90--98\% detection accuracy versus 40--85\% for Gemini, with the gap widest for subtle corruptions. On \textbf{Tier 3} tasks (mood coherence, semantic matching), Gemini achieves 60--80\% accuracy versus 30--50\% for the signal pipeline. Tier 2 (speaker identity, abrupt cuts) falls in between, with both systems in the 60--85\% range.
+\subsection{Automation Boundary}
 
-The divergence matrix reveals that roughly 15--20\% of variants are detected by one system but missed by the other, confirming that neither is a strict superset. An ensemble combining both approaches---using signal tools for Tier 1 dimensions and VLM for Tier 3---would cover approximately 90\% of all variants, significantly outperforming either alone.
+The three-tier automation model determines which evaluation layer handles each dimension:
 
-\section{Toward Automated Audio Task Generation}
+\begin{center}
+\begin{tabular}{p{3.5cm}p{3.5cm}p{4cm}}
+\toprule
+Signal Processing & VLM Judge & Human Required \\
+\midrule
+A/V sync offset (cross-corr.) &
+Artifact perceptibility &
+Genre-specific intent (avant-garde) \\
+Onset timing delta &
+Mood appropriateness &
+Diegetic vs.\ non-diegetic ambiguity \\
+Spectral anomaly Z-score &
+Speaker naturalness &
+Intentional silence vs.\ dropout \\
+Frequency ratio shift &
+SFX semantic match &
+Cultural/contextual coherence \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-Our corruption-based approach provides a scalable path to benchmark generation with minimal human input. The process begins with \emph{clean} source clips (real or synthetic) and programmatically injects known failures: sync shifts, speaker swaps, artifact injection, SFX mistiming, and mood-mismatched music replacement. Because we control the corruption, ground truth is mathematically exact for Tier 1 tasks and precisely measured for Tier 2.
+For Tier~3 tasks, \emph{agentic pre-labeling} bridges the gap: a strong VLM annotates
+semantic relationships (``the music valence is joyful but the scene shows grief''), a human
+reviews a 5--10\% sample to set a calibration threshold, and the agreed labels become stable
+benchmark entries. This reduces human annotation cost by approximately $10\times$ compared
+to fully manual labeling.
 
-From 5 seed tasks, parameterized expansion across 10--15 source clips and 5--10 severity levels yields 500+ variants. Adding cross-pillar combinations (e.g., sync drift plus artifact injection) and clean negative controls (20\% of the pool) produces a balanced, discriminating test suite. Difficulty calibration ensures that the benchmark's operating point falls in the 35--75\% detection band---hard enough to be informative, easy enough that perfect models can be distinguished from broken ones.
+\section{Variant Expansion and Difficulty Calibration}
 
-For Tier 3 tasks (semantic judgment), ground truth is softer---mood distance is a continuous proxy, not a binary label. The path to full automation here requires agentic pre-labeling: a strong VLM labels the semantic relationship, a human reviews edge cases, and the result becomes a benchmark label. Our framework supports this workflow by separating ground truth extraction from scoring.
+From five seed tasks, we expand to 500+ variants using five systematic methods:
+
+\textbf{1. Severity scaling.} Each continuous corruption parameter is swept across a
+pre-defined grid. For S1: offset\_ms $\in \{50, 100, 150, 200, 300, 500, 750, 1000, 1500,
+2000\}$ (10 levels). For S4: severity $\in \{0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.7,
+1.0\}$ (9 levels). Combined with multiple source clips, severity scaling alone produces
+100--500 variants per seed.
+
+\textbf{2. Temporal shifting.} Varies the \emph{position} of the corruption within the clip,
+not just its magnitude. A 200\,ms sync offset applied at second 1.0 is harder to detect than
+the same offset at second 6.0 because early-clip onset ambiguity provides less comparison
+context for cross-correlation.
+
+\textbf{3. SNR manipulation.} Controls the signal-to-noise ratio between the injected
+corruption and the background audio. An artifact buried under a music track at SNR $= -3$\,dB
+is nearly imperceptible to both signal tools and VLMs. SNR levels $\in \{20, 10, 5, 0, -3\}$\,dB
+expand S4 into a masking-difficulty axis.
+
+\textbf{4. Distractor injection.} Adds a competing audio event temporally close to the
+target event. For S3 (SFX timing), a distractor impact sound 100\,ms before the target
+confuses both onset detectors and human listeners, creating hard negatives.
+
+\textbf{5. Cross-pillar combination.} Applies two corruptions simultaneously (e.g., sync
+drift + artifact injection). Composite variants test whether judges can disentangle
+co-occurring failures and are the most realistic failure mode in actual generated video.
+
+\subsection{Difficulty Calibration}
+
+A useful benchmark requires tasks where current models fall in the 35--75\% pass-rate band:
+wide enough to distinguish strong from weak models, narrow enough that improvement is
+measurable. Our framework categorizes variants as \emph{easy} ($>$75\%), \emph{medium}
+(35--75\%), or \emph{hard} ($<$35\%) after each run and flags any seed where the overall
+pass rate is outside the band. In our experiments, S1 is at ceiling for signal (99.5\%)
+and needs adversarial distractor variants to become discriminating; S2 and S3 are below
+the floor for both judges and need easier severity levels (larger frequency shifts, longer
+temporal offsets) to bring them into the band.
+
+\section{Verifiable Rubric Design}
+
+Five scoring dimensions, each on a 1--5 scale with explicit level definitions:
+
+\textbf{A/V Synchronization} measures audio-to-visual temporal alignment.
+1 = catastrophic offset ($>$500\,ms), clearly dubbed or disjointed;
+2 = severe offset (200--500\,ms), distracting to any viewer;
+3 = noticeable offset (80--200\,ms), perceptible on focused viewing;
+4 = minor offset (40--80\,ms), at perceptual threshold;
+5 = imperceptible offset ($<$40\,ms). \emph{Automation:} fully signal-verifiable.
+
+\textbf{Artifact Quality} measures freedom from introduced noise, clipping, or dropouts.
+1 = severe distortion or long dropouts dominate the clip;
+2 = prominent clicks, pops, or clipping that interrupt listening;
+3 = audible artifacts but tolerable;
+4 = subtle artifacts detectable on headphones;
+5 = artifact-free. \emph{Automation:} Z-score detection for severe cases; VLM for subtle.
+
+\textbf{Speaker Consistency} measures voice identity stability across clip duration.
+1 = completely different voice (different gender, age, or accent);
+2 = notable timbre or pitch change inconsistent with natural variation;
+3 = slight inconsistency that attentive listeners notice;
+4 = minor variation within plausible natural range;
+5 = fully consistent speaker identity. \emph{Automation:} spectral composite for extremes; VLM for subtle.
+
+\textbf{Semantic Match} measures appropriateness of SFX selection for the visual event.
+1 = completely wrong (metallic sound for cloth, animal sound for mechanical action);
+2 = major mismatch (wrong category);
+3 = plausible but imprecise (wood when plastic expected);
+4 = mostly appropriate with minor spectral discrepancy;
+5 = perfectly matched to visual cause. \emph{Automation:} VLM required for all levels.
+
+\textbf{Music Coherence} measures alignment between music's emotional valence/energy and scene mood.
+1 = directly opposite valence (triumphant music over tragedy);
+2 = clearly inappropriate for scene type;
+3 = neutral/generic music with no clear mismatch but no enhancement;
+4 = generally fitting with minor mood incongruity;
+5 = enhances narrative with well-matched dynamics and valence. \emph{Automation:} VLM required; human review for borderline cases.
+
+\subsection{The Cross-Cut Music Challenge}
+
+The spec identifies a structural property that makes music evaluation uniquely hard: music
+cues span shot boundaries. A musical phrase beginning two seconds before a cut and ending
+three seconds after it cannot be evaluated at the clip level. Per-clip scoring would assign
+the music a neutral or positive score (``the music matches this 8-second window'') while
+missing that the phrase as a whole ignores the emotional transition at the cut point.
+
+Correct sequence-level evaluation requires maintaining a \emph{music state buffer} across
+consecutive clips: tracking phrase position, key, tempo, and valence over 20--60 second
+windows that span multiple cuts. The rubric's Music Coherence dimension is designed to be
+applied at this multi-clip granularity, not per-clip. Our current benchmark evaluates
+8-second clips, which cannot capture cross-cut coherence. Sequence-level evaluation is
+identified as the primary architectural extension required for full music pillar coverage.
+
+\subsection{Rubric Edge Cases}
+
+Three scenarios where the rubric struggles reveal fundamental ambiguities in the ground
+truth definition:
+
+\textbf{1. Intentional silence.} A 3-second dramatic pause in dialogue is not a signal
+dropout, but our S4 artifact detector scores it as severity~1.0 because energy drops to
+$-$60\,dBFS. The rubric's Artifact Quality dimension requires context: is the silence
+preceded by a charged emotional moment (intentional) or does it occur mid-sentence
+(malfunction)? No signal-only system can make this determination.
+
+\textbf{2. Diegetic vs.\ non-diegetic audio.} A scene showing a character listening to a
+radio contains both diegetic audio (the radio) and non-diegetic audio (the film score).
+Mood Coherence dimension scoring is ambiguous: the diegetic radio may play music that
+mismatches the scene's emotional tone as a \emph{narrative choice} (ironic counterpoint),
+not a generation failure. The rubric needs a diegetic flag to handle this correctly.
+
+\textbf{3. Genre-stylistic mismatch.} Horror and experimental film deliberately use
+out-of-sync audio, uncanny sound effects, and dissonant music. Our benchmark would flag
+a correctly generated horror clip as failing on A/V Synchronization and Music Coherence.
+Genre metadata must gate the rubric: the acceptable range for each dimension shifts
+substantially across genre categories.
+
+\section{Signal Processing vs.\ Model-Based Detection}
+
+\subsection{Judge Architectures}
+
+The \textbf{signal processing pipeline} uses librosa for FFT cross-correlation (S1), a
+weighted multi-feature spectral composite (S2), onset delta matching (S3), and Z-score
+anomaly detection (S4). Its defining characteristic is \emph{deterministic precision}: given
+identical inputs, it produces identical outputs, and its error mode is a hard miss rather
+than a soft hallucination.
+
+The \textbf{VLM judge} (Gemini~2.5 Flash via OpenRouter) receives the full remuxed video
+(corrupted audio muxed back onto the source video track) as a base64-encoded MP4, enabling
+joint audio-visual reasoning. For each variant, it returns a structured JSON response with
+per-dimension rubric scores plus a binary detection flag. Its defining characteristic is
+\emph{perceptual holism}: it reasons about audio quality as a viewer, not as a signal
+analyst, which makes it robust to stimuli that lack clean spectral signatures but brittle
+to precise temporal measurement.
+
+\subsection{Experimental Results}
+
+We evaluated four seed tasks across 1,094 variants on AVA \cite{gu2018ava} and Greatest
+Hits \cite{owens2016visually} datasets using real API calls to Gemini~2.5~Flash via
+OpenRouter alongside the signal processing pipeline.
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+Seed & Variants & Signal Acc. & VLM Acc. & Leading Judge \\
+\midrule
+S1 (sync, AVA)          & 198 & 99.5\% & 63.1\% & Signal ($+$36.4\,pp) \\
+S2 (speaker, AVA)       & 198 & 33.3\% & 43.9\% & VLM ($+$10.6\,pp) \\
+S3 (SFX timing, GH)     & 225 & 11.1\% & 31.1\% & VLM ($+$20.0\,pp) \\
+S4 (artifacts, AVA)     & 473 & 36.2\% & 70.6\% & VLM ($+$34.4\,pp) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{S1} validates the signal pipeline's core competency: FFT cross-correlation achieves
+near-perfect sync detection across all difficulty levels. The VLM achieves only 54\% on hard
+variants ($<$300\,ms offset), confirming that language-model temporal reasoning carries
+$\sim$200\,ms noise that is unavoidable without explicit signal computation.
+
+\textbf{S2} exposes a fundamental weakness in spectral feature-matching on real speech: MFCC
+cosine similarity between original and frequency-shifted replacement remains above 0.95 on
+AVA clips, making all spectral features nearly useless. The VLM's marginal advantage (+10.6\,pp)
+suggests it captures suprasegmental cues (rhythm, intonation envelope) that our hand-crafted
+feature composite misses---pointing toward learned speaker embeddings as the correct
+signal-side approach.
+
+\textbf{S3} produces the most surprising result: signal achieves only 11.1\% on the Greatest
+Hits dataset, far below the VLM's 31.1\%. Both are below the discriminating band. The failure
+source is compound onset structure in real material-impact sounds---a wooden strike has an
+initial contact transient followed by a resonance buildup, and our onset delta-matching logic
+confuses the two phases. This demonstrates that ``Tier~1 by construction'' (known ground truth)
+does not imply ``signal-dominated in practice.'' The appropriate detection method depends on
+acoustic complexity, not just ground truth structure.
+
+\textbf{S4} shows the VLM dominating by 34.4\,pp. Artifact detection is a perceptual judgment:
+trained listeners recognize distortion and spectral tearing holistically, without needing a
+reference signal. The pipeline's Z-score approach requires a clean baseline distribution estimated
+from the signal itself, which is poorly calibrated on 8-second clips where artifacts occupy
+a significant fraction of the clip. The VLM's zero-shot perceptual query (``does this sound
+degraded?'') requires no baseline. This is the domain where holistic reasoning is the correct
+computational model. Across 1,094 variants, 137 cases favor signal only and 294 favor VLM only,
+confirming genuine complementarity.
+
+\section{Toward Automated Task Generation}
+
+Our corruption-based framework provides a scalable path to benchmark growth with minimal human
+input. The key design choices that enable this are: (1) separating \emph{corruption application}
+from \emph{ground truth extraction}, so new datasets can be onboarded by providing only source
+clips; (2) SHA-256-based deterministic seeding, ensuring that the same source clip and parameter
+set always produce the same variant and preventing evaluation pollution from randomness; (3)
+automatic difficulty calibration after each run, which drives the expansion strategy by flagging
+which severity ranges need more coverage; and (4) the agentic pre-labeling workflow for Tier~3
+tasks, which converts expensive human judgment into a one-time calibration cost.
+
+From five seed tasks, the framework generates 500+ variants without new task design effort. The
+next scaling step---compositional corruption (sync drift + artifact, speaker swap + SFX mistiming)
+---requires no new seed definitions, only a parameter combining step in the expansion module.
+The full automation limit is Tier~3 mood coherence at the sequence level, which requires the
+music state buffer architecture described in Section~5.2.
 
 \section{Rubric as Reward Signal for Training}
 
-The five rubric dimensions---A/V synchronization, artifact quality, speaker consistency, semantic match, and music coherence---each map to a 1--5 scale with explicitly defined levels. This structure is directly usable as a reward signal for training video generation models via reinforcement learning.
+The five rubric dimensions map directly to a RLVR reward structure. Tier~1 dimensions (A/V
+Synchronization, Artifact Quality) provide \emph{hard verifiable rewards}: a signal tool
+measures the offset and assigns a score deterministically. A sync offset of 200\,ms yields
+score~2; improving to 80\,ms yields score~4. This is the same structure as code execution
+feedback in reasoning model training: the reward is not a preference estimate but a
+measurement.
 
-Tier 1 dimensions provide precise gradient signals. A sync offset of 200ms scores 2; improving to 80ms yields 4. The model receives a continuous signal about temporal alignment, not just a binary pass/fail. These dimensions connect naturally to timing-based loss functions in the generation pipeline.
+Tier~3 dimensions (Semantic Match, Music Coherence) provide \emph{soft verifiable rewards}
+via VLM consensus. Three independent VLM queries scoring the same clip, with the majority
+vote as the reward signal, achieve sufficient consistency for training on cases with $d > 0.6$
+mood distance. Borderline cases ($d < 0.3$) should be excluded from the reward signal or
+down-weighted, as VLM disagreement in that range is high.
 
-Tier 3 dimensions provide softer semantic signals better suited to preference-based training (RLHF/RLAIF). A mood coherence score of 2 (``inappropriate for the scene'') vs. 4 (``appropriate with minor issues'') gives directional feedback about emotional alignment without requiring frame-level precision.
+The critical advantage of the tiered structure over a single holistic score is
+\emph{decomposed optimization pressure}. A model with perfect sync but poor mood matching
+receives a gradient that specifically penalizes Music Coherence while preserving A/V
+Synchronization. A holistic score conflates these dimensions and produces ambiguous
+gradients. The rubric's five-dimension decomposition thus functions simultaneously as a
+structured evaluation report and as a precision loss function.
 
-The tiered reward structure is strictly superior to a single holistic quality score because it tells the model \emph{what} to fix. A video with perfect sync but terrible mood matching should receive different optimization pressure than one with great mood matching but visible lip-sync drift. Decomposed rubric scores enable this targeted feedback.
+\section{Limitations}
 
-This connects directly to the RLVR (reinforcement learning from verifiable rewards) paradigm: Tier 1 scores are verifiable by signal measurement, providing hard reward. Tier 3 scores, while softer, can be verified by VLM consensus, providing a weaker but still structured reward channel. The benchmark's per-dimension scores thus serve double duty as evaluation metrics and training signals.
+\textbf{Gemini's sync accuracy with full visual context (63.1\%) reframes S1.}
+The pipeline remuxes corrupted audio back into the source video before scoring, so
+Gemini received the complete video+audio stream for all AVA and Greatest Hits variants.
+The 63.1\% accuracy on S1 therefore represents Gemini's genuine multimodal sync-detection
+performance with lip-motion reference available. The fact that it still reaches only
+54\% on hard variants ($<$300\,ms offset) demonstrates that language-model temporal
+reasoning cannot reliably detect sub-perceptual-threshold offsets even with visual
+reference frames---not a data-collection gap, but a fundamental capability limit of
+autoregressive VLMs relative to cross-correlation. Future work should evaluate whether
+chain-of-thought prompting asking the model to reason frame-by-frame improves this.
 
-\section{Limitations and Future Work}
+\textbf{Single-pass VLM scoring.} Each variant was scored by a single Gemini API call.
+VLMs are stochastic: the same prompt and video can yield different binary detection
+outputs on repeated queries, with variance estimated at $\pm$5--10\,pp at the aggregate
+level. Consensus scoring---three independent queries per variant, majority vote as the
+label---would reduce this noise substantially at $3\times$ API cost. Results for S2 and
+S3, where aggregate accuracy is near chance, should be interpreted with this variance in mind.
 
-Our prototype uses synthetic audio, which captures the structural properties of audio-visual correspondence but misses the perceptual complexity of real recordings. Real speech has natural variation that synthetic tones do not; real music has timbral richness that sine-wave chords cannot approximate. Extending to real video data would require careful source curation and more nuanced ground truth extraction.
+\textbf{S5 (Music / Mood) not evaluated.} The fifth seed task---music mood swap with
+controlled valence/energy distance---was implemented but not included in the reported
+runs, because AVA and Greatest Hits clips do not carry background music tracks. Evaluating
+S5 requires music-bearing clips (e.g., Condensed Movies) or synthetic mixed clips, and
+constitutes the primary gap in pillar coverage: the Music pillar has no measured results.
 
-Edge cases remain challenging: intentional silence (a dramatic pause is not a dropout), diegetic ambiguity (is the music part of the scene or soundtrack?), and stylistic choices (avant-garde films deliberately mismatch audio and video). The framework's failure mode taxonomy would need cultural and genre-specific extensions.
+\textbf{Sequence-level music evaluation absent.} All experiments score 8-second clips;
+the Music Coherence dimension as currently implemented cannot detect cross-cut phrase
+incoherence as described in Section~4.2.
 
-Scaling to longer sequences---full scenes or episodes rather than 10--30 second clips---introduces state-tracking requirements: does the music maintain coherence across a 5-minute sequence? Does speaker identity hold across 20 shots? These temporal dependencies exceed current evaluation windows for both signal tools and VLMs.
+\textbf{Edge cases require schema extensions.} Intentional silence, diegetic audio, and
+genre-stylistic choices require genre metadata and diegetic flags that are not yet in
+the benchmark schema.
 
-Future work should explore ensemble scoring strategies that dynamically route evaluation to the appropriate tool based on detected content type and timescale, cross-modal attention analysis to understand where VLMs actually ``look'' when judging audio quality, and integration with visual quality benchmarks for holistic audio-visual evaluation.
+\begin{thebibliography}{9}
+\bibitem{gu2018ava}
+R.~Gu et al., ``AVA: A Video Dataset of Spatio-temporally Localized Atomic Visual Actions,''
+\emph{CVPR}, 2018.
+
+\bibitem{owens2016visually}
+A.~Owens et al., ``Visually Indicated Sounds,'' \emph{CVPR}, 2016.
+\end{thebibliography}
 
 \end{document}

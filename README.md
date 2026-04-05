@@ -273,6 +273,17 @@ cd /d F:\philo_lab\audio-eval
 python -m unittest discover -s tests -v
 ```
 
+## Agent Prompts Used
+
+The full prompt given to Claude Code (the coding agent used to build this repo) is in
+[claude_code_prompt.md](./claude_code_prompt.md).
+
+It covers the intended architecture, all module specifications, corruption function
+signatures, scorer mock-behavior profiles, and the report structure. The implementation
+tracks the spec closely; deviations (real signal processing replacing mocked signal
+scorers, SHA-256-based seeding replacing `random.seed(hash(...))`, keyword-only
+corruption function args, etc.) are documented in git history.
+
 ## Notes
 
 - synthetic mode is the default fallback if no real clips are available

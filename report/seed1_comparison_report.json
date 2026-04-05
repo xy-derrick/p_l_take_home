@@ -1,0 +1,145 @@
+{
+  "per_seed_accuracy": {
+    "S1": {
+      "signal": {
+        "accuracy": 0.9949494949494949,
+        "easy": 0.9888888888888889,
+        "medium": 1.0,
+        "hard": 1.0
+      },
+      "gemini": {
+        "accuracy": 0.6313131313131313,
+        "easy": 0.6888888888888889,
+        "medium": 0.6296296296296297,
+        "hard": 0.5370370370370371
+      },
+      "total": 198
+    }
+  },
+  "tier_performance": {
+    "tier_1": {
+      "signal_accuracy": 0.9949494949494949,
+      "gemini_accuracy": 0.6313131313131313,
+      "n_variants": 198
+    }
+  },
+  "divergence_matrix": {
+    "both_correct": {
+      "count": 125,
+      "examples": [
+        {
+          "task_id": "S1_ava_ava_-IELREHX_js_0922470_clean_speech_offset_ms50",
+          "seed_id": "S1",
+          "tier": 1,
+          "difficulty": "hard"
+        },
+        {
+          "task_id": "S1_ava_ava_-IELREHX_js_0922470_clean_speech_offset_ms100",
+          "seed_id": "S1",
+          "tier": 1,
+          "difficulty": "hard"
+        },
+        {
+          "task_id": "S1_ava_ava_-IELREHX_js_0922470_clean_speech_offset_ms300",
+          "seed_id": "S1",
+          "tier": 1,
+          "difficulty": "medium"
+        },
+        {
+          "task_id": "S1_ava_ava_-IELREHX_js_0922470_clean_speech_offset_ms500",
+          "seed_id": "S1",
+          "tier": 1,
+          "difficulty": "medium"
+        },
+        {
+          "task_id": "S1_ava_ava_-IELREHX_js_0922470_clean_speech_offset_ms750",
+          "seed_id": "S1",
+          "tier": 1,
+          "difficulty": "easy"
+        }
+      ]
+    },
+    "both_wrong": {
+      "count": 1,
+      "examples": [
+        {
+          "task_id": "S1_ava_ava_26V9UzqSguo_1022960_clean_speech_offset_ms2000",
+          "seed_id": "S1",
+          "tier": 1,
+          "difficulty": "easy"
+        }
+      ]
+    },
+    "signal_advantage": {
+      "count": 72,
+      "examples": [
+        {
+          "task_id": "S1_ava_ava_-IELREHX_js_0922470_clean_speech_offset_ms150",
+          "seed_id": "S1",
+          "tier": 1,
+          "difficulty": "hard"
+        },
+        {
+          "task_id": "S1_ava_ava_-IELREHX_js_0922470_clean_speech_offset_ms200",
+          "seed_id": "S1",
+          "tier": 1,
+          "difficulty": "medium"
+        },
+        {
+          "task_id": "S1_ava_ava_-IELREHX_js_0922470_clean_speech_offset_ms1000",
+          "seed_id": "S1",
+          "tier": 1,
+          "difficulty": "easy"
+        },
+        {
+          "task_id": "S1_ava_ava_-IELREHX_js_0922470_clean_speech_clean",
+          "seed_id": "S1",
+          "tier": 1,
+          "difficulty": "easy"
+        },
+        {
+          "task_id": "S1_ava_ava_0f39OWEqJ24_0954450_clean_speech_offset_ms150",
+          "seed_id": "S1",
+          "tier": 1,
+          "difficulty": "hard"
+        }
+      ]
+    },
+    "gemini_advantage": {
+      "count": 0,
+      "examples": []
+    }
+  },
+  "difficulty_calibration": {
+    "S1_signal_easy": {
+      "pass_rate": 0.9861111111111112,
+      "n": 72,
+      "in_discriminating_band": false
+    },
+    "S1_signal_medium": {
+      "pass_rate": 1.0,
+      "n": 54,
+      "in_discriminating_band": false
+    },
+    "S1_signal_hard": {
+      "pass_rate": 1.0,
+      "n": 54,
+      "in_discriminating_band": false
+    },
+    "S1_gemini_easy": {
+      "pass_rate": 0.7777777777777778,
+      "n": 72,
+      "in_discriminating_band": false
+    },
+    "S1_gemini_medium": {
+      "pass_rate": 0.6296296296296297,
+      "n": 54,
+      "in_discriminating_band": true
+    },
+    "S1_gemini_hard": {
+      "pass_rate": 0.5370370370370371,
+      "n": 54,
+      "in_discriminating_band": true
+    }
+  }
+}
