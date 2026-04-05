@@ -316,7 +316,7 @@ agent-to-agent channel. The coordination loop was:
 5. Claude Code reviews the findings and patches code and report
 6. Changes committed → Codex can read them on the next pass
 
-The critical step is 4: the user manually copy-pasted Codex's audit output directly
+The critical step is 4: the user copy-pasted Codex's audit output directly
 into Claude Code's context and asked it to review and act on the findings. This is the
 simplest possible inter-agent communication pattern — no orchestration framework, no
 shared memory system, just a human relaying outputs between two independent chat

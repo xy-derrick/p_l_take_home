@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "generatedAtIso": "2026-04-05T06:05:46.453Z",
+  "roots": {
+    "codexSessionsRoot": "C:\\Users\\Administrator\\.codex\\sessions",
+    "claudeSessionsRoot": "C:\\Users\\Administrator\\.claude\\projects"
+  },
+  "files": [
+    {
+      "source": "codex",
+      "originalPath": "C:\\Users\\Administrator\\.codex\\sessions\\2026\\04\\04\\rollout-2026-04-04T16-48-56-019d5a41-8371-7902-9b6c-9736d9775898.jsonl",
+      "relativePathFromSourceRoot": "2026/04/04/rollout-2026-04-04T16-48-56-019d5a41-8371-7902-9b6c-9736d9775898.jsonl",
+      "exportedRelativePath": "codex/2026/04/04/rollout-2026-04-04T16-48-56-019d5a41-8371-7902-9b6c-9736d9775898.jsonl",
+      "sessionId": "019d5a41-8371-7902-9b6c-9736d9775898"
+    }
+  ]
+}
