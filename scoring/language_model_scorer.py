@@ -1,4 +1,4 @@
-"""Gemini 2.5 Flash scorer via OpenRouter API, with mock fallback."""
+"""OpenRouter multimodal scorer, with mock fallback."""
 
 from __future__ import annotations
 
@@ -9,14 +9,14 @@ import time
 
 import numpy as np
 
-from config import GEMINI_MODEL, OPENROUTER_API_KEY, OPENROUTER_BASE_URL
+from config import MODEL, OPENROUTER_API_KEY, OPENROUTER_BASE_URL
 from scoring.rubric import RUBRIC_DIMENSIONS
 from seeds.seed_tasks import SEED_TASKS
 from utils import stable_int_seed
 
 
-class GeminiScorer:
-    """Scores audio quality using Gemini via OpenRouter, with mock fallback."""
+class LanguageModelScorer:
+    """Scores audio quality using the configured OpenRouter model, with mock fallback."""
 
     def __init__(self, force_mock: bool = False):
         self.api_key = OPENROUTER_API_KEY
@@ -47,7 +47,7 @@ class GeminiScorer:
                         "Content-Type": "application/json",
                     },
                     json={
-                        "model": GEMINI_MODEL,
+                        "model": MODEL,
                         "messages": messages,
                         "max_tokens": 1024,
                     },
@@ -61,7 +61,7 @@ class GeminiScorer:
                 if attempt < 2:
                     time.sleep(2 ** attempt)
                     continue
-                print(f"  [Gemini API error for {variant.task_id}: {exc}, falling back to mock]")
+                print(f"  [Model API error for {variant.task_id}: {exc}, falling back to mock]")
                 return self._mock_response(variant)
 
     def _build_content(self, variant, prompt: str) -> list[dict]:
@@ -155,8 +155,8 @@ class GeminiScorer:
         return scores
 
     def _mock_response(self, variant) -> dict:
-        """Generate simulated response based on expected Gemini behavior."""
-        rng = np.random.default_rng(stable_int_seed(f"gemini:{variant.task_id}"))
+        """Generate simulated response based on expected language-model behavior."""
+        rng = np.random.default_rng(stable_int_seed(f"model:{variant.task_id}"))
         gt = variant.ground_truth or {}
         corruption_type = gt.get("corruption_type", "none")
 

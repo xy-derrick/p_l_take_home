@@ -1,49 +1,112 @@
-# Audio Quality Verification Benchmark for AI-Generated Video
+# Audio Quality Verification Benchmark
 
-## Overview
-This repo builds a corruption-based benchmark for audio failures in AI-generated video.
-It supports two source modes:
+This repo benchmarks audio failures in AI-generated video by:
 
-- `synthetic`: fully local WAV generation with exact ground truth
-- `real-video`: public-dataset clips prepared as MP4 + WAV pairs and sent to Gemini as video
+1. preparing source clips
+2. injecting controlled corruptions
+3. scoring each clip with a signal-based judge and a multimodal judge
+4. exporting TSV, JSON, plots, and per-judge logs
 
-The benchmark compares two judges:
+The main entry point is [cli.py](./cli.py).
 
-- `SignalScorer`: deterministic mock of a modular signal-processing pipeline
-- `GeminiScorer`: OpenRouter-based multimodal judge configured for `google/gemini-2.5-flash-preview`, with video input when available and mock fallback otherwise
+## What the Repo Supports
 
-## Supported Datasets
-- `synthetic`: generated locally, no external assets required
-- `ava`: intended for speech / active-speaker clips
-- `greatest_hits`: intended for visually grounded impact / SFX clips (not implemented)
-- `condensed_movies`: intended for scene-level music / mood clips (not implemented)
+- `synthetic` source mode: generates local WAV clips with exact ground truth
+- `real-video` source mode: prepares MP4 + WAV pairs from dataset manifests
+- `SignalScorer`: real signal processing for `S1` to `S4`
+- `LanguageModelScorer`: OpenRouter multimodal scorer using the configured `MODEL`
+- per-run report export and replay from saved judge logs
 
-Real-video datasets are prepared from local manifest files under `data/manifests/`.
+## Seeds
 
-## Quick Start
+- `S1`: sync drift
+- `S2`: speaker identity change
+- `S3`: SFX mistiming
+- `S4`: artifact injection
+- `S5`: music mood mismatch
+
+In practice, the strongest current benchmark path is `S1` to `S4`.
+
+## Requirements
+
+- Python 3.9+
+- `ffmpeg` and `ffprobe` available on `PATH`
+- optional: `OPENROUTER_API_KEY` for real model calls
+
+Install Python dependencies:
+
 ```bash
 pip install -r requirements.txt
-python cli.py run --datasets synthetic
+```
+
+## Configuration
+
+The runtime reads `.env` from the repo root if present.
+
+Example:
+
+```env
+OPENROUTER_API_KEY=your_key_here
+MODEL=google/gemini-2.5-flash
+MODEL_LABEL=Gemini 2.5 Flash
+```
+
+Notes:
+
+- `MODEL` is the OpenRouter model name used in requests
+- `MODEL_LABEL` is optional and controls plot/report labels
+- the code still accepts legacy `GEMINI_MODEL`, but `MODEL` is preferred
+
+## Quick Start
+
+### 1. Synthetic smoke test
+
+Runs end to end with no external data and no API calls:
+
+```cmd
+cd /d F:\philo_lab\audio-eval
+python cli.py run --datasets synthetic --mock
+```
+
+### 2. Real-video smoke test
+
+If you already have prepared clips:
+
+```cmd
+cd /d F:\philo_lab\audio-eval
+python cli.py run --datasets ava,greatest_hits --seeds S1,S2,S3,S4 --mock
+```
+
+### 3. Real model run
+
+```cmd
+cd /d F:\philo_lab\audio-eval
+python cli.py run --datasets ava,greatest_hits --seeds S1,S2,S3,S4 --no-mock
+```
+
+If you already generated corrupted files and want to rescore without regenerating them:
+
+```cmd
+python cli.py run --datasets ava,greatest_hits --seeds S1,S2,S3,S4 --no-mock --reuse-corrupted
 ```
 
 ## Real-Video Workflow
-1. Put raw dataset videos somewhere under `data/raw_videos/<dataset>/` or reference absolute paths.
-2. Create a manifest file:
-   - `data/manifests/ava_clips.jsonl`
-   - `data/manifests/greatest_hits_clips.jsonl`
-   - `data/manifests/condensed_movies_clips.jsonl`
-3. Extract prepared clips:
-```bash
-python cli.py prepare-datasets --datasets ava,greatest_hits
-python cli.py extract-clips --datasets ava,greatest_hits
-```
-4. Run the benchmark:
-```bash
-python cli.py run --datasets ava,greatest_hits --no-mock
-```
 
-## Cmd Download Helpers
-All helper scripts below are runnable from `cmd.exe`:
+The real-video path has three stages:
+
+1. download raw dataset media
+2. build manifests
+3. prepare clips and run the benchmark
+
+### Supported datasets
+
+- `ava`: speech / visible-speaker clips
+- `greatest_hits`: visually grounded impact / SFX clips
+- `condensed_movies`: music / mixed clips via manifest-driven preparation
+
+### Download helpers
+
+These helper scripts are written for `cmd.exe`:
 
 ```cmd
 cd /d F:\philo_lab\audio-eval
@@ -55,63 +118,120 @@ scripts\download_greatest_hits.cmd --variant lowres --extract --skip-existing
 scripts\build_greatest_hits_manifest.cmd --max-clips-per-video 3
 ```
 
-The AVA downloader writes to:
+They populate:
 
-- `data\raw_videos\ava\videos`
-- `data\raw_videos\ava\annotations`
-
-The Greatest Hits downloader writes to:
-
+- `data\raw_videos\ava`
 - `data\raw_videos\greatest_hits`
+- `data\manifests\ava_clips.jsonl`
+- `data\manifests\greatest_hits_clips.jsonl`
 
-You can then run:
+### Prepare clips
+
+This extracts short MP4 clips from raw videos, writes companion WAV files, and stores metadata in `data\source_clips\...`.
 
 ```cmd
+cd /d F:\philo_lab\audio-eval
 python cli.py prepare-datasets --datasets ava,greatest_hits
-python cli.py run --datasets ava,greatest_hits --mock
-```
-
-## Manifest Schema
-Each manifest record can be JSONL, JSON, or CSV and should contain at least:
-
-```json
-{
-  "clip_id": "ava_speaker_0001",
-  "video_path": "data/raw_videos/ava/example.mp4",
-  "start_s": 12.0,
-  "end_s": 20.0,
-  "clip_type": "speech",
-  "event_timestamps_s": [14.2, 16.7],
-  "mood": {"valence": 0.3, "energy": 0.8, "tempo_bpm": 132},
-  "caption": "A woman speaks directly to camera."
-}
-```
-
-Relevant optional fields by dataset:
-
-- `ava`: `clip_type="speech"` and any speech / speaker metadata
-- `greatest_hits`: `clip_type="sfx"` plus `event_timestamps_s`
-- `condensed_movies`: `clip_type="music"` or `clip_type="mixed"` plus `mood`
-
-## CLI
-```bash
-python cli.py generate --datasets synthetic
-python cli.py prepare-datasets --datasets ava,greatest_hits
-python cli.py extract-clips --datasets condensed_movies
-python cli.py run --datasets synthetic
-python cli.py run --datasets ava,greatest_hits --seeds S1,S3,S4 --no-mock
-python cli.py compare
 ```
 
 Useful flags:
 
-- `--datasets synthetic,ava,...`
-- `--limit-per-dataset 10`
-- `--force-prepare`
-- `--mock` / `--no-mock`
+- `--limit-per-dataset 10`: only prepare a subset
+- `--force-prepare`: rebuild prepared clips from the manifest
 
-## Corruption Examples
-You can generate one example corrupted WAV directly from `cmd.exe`:
+Note:
+
+- `extract-clips` is currently just an alias for `prepare-datasets`
+
+## Common Run Commands
+
+### Run one seed
+
+```cmd
+python cli.py run --datasets ava --seeds S1 --no-mock
+```
+
+### Run `S1` to `S4`
+
+```cmd
+python cli.py run --datasets ava,greatest_hits --seeds S1,S2,S3,S4 --no-mock
+```
+
+### Run with a smaller sample
+
+```cmd
+python cli.py run --datasets ava,greatest_hits --seeds S1,S2,S3,S4 --mock --limit-per-dataset 5
+```
+
+### Reuse existing corruptions
+
+```cmd
+python cli.py run --datasets ava,greatest_hits --seeds S1,S2,S3,S4 --no-mock --reuse-corrupted
+```
+
+## CLI Summary
+
+```text
+generate
+prepare-datasets
+extract-clips
+run
+score
+compare
+replay-from-log
+```
+
+Examples:
+
+```cmd
+python cli.py generate --datasets synthetic
+python cli.py prepare-datasets --datasets ava,greatest_hits
+python cli.py run --datasets synthetic --mock
+python cli.py compare
+python cli.py replay-from-log --input report\seed1_latest_judge_scores.jsonl
+```
+
+## Outputs
+
+Normal `run` output:
+
+- `outputs\tasks_and_rubrics.tsv`
+- `outputs\comparison_report.json`
+- `outputs\plots\severity_curve_*.png`
+- `outputs\plots\tier_comparison.png`
+- `logs\latest_judge_scores.jsonl`
+
+After each run, the CLI also copies report artifacts into `report\` using the selected seed prefix, for example:
+
+- `report\seed1_latest_judge_scores.jsonl`
+- `report\seed1_comparison_report.json`
+- `report\seed1_tier_comparison.png`
+
+## Replay From a Saved Judge Log
+
+You can rebuild TSV, comparison JSON, and plots directly from a saved judge log:
+
+```cmd
+cd /d F:\philo_lab\audio-eval
+python cli.py replay-from-log --input report\seed1_latest_judge_scores.jsonl
+```
+
+That writes files next to the input log using the same prefix, for example:
+
+- `report\seed1_tasks_and_rubrics.tsv`
+- `report\seed1_comparison_report.json`
+- `report\seed1_tier_comparison.png`
+- `report\seed1_severity_curve_S1.png`
+
+You can override the destination directory:
+
+```cmd
+python cli.py replay-from-log --input report\seed1_latest_judge_scores.jsonl --output-dir outputs
+```
+
+## Corruption Example Commands
+
+These generate one corrupted WAV plus a sibling JSON metadata file:
 
 ```cmd
 cd /d F:\philo_lab\audio-eval
@@ -123,19 +243,39 @@ scripts\generate_corruption_example.cmd sfx_mistime --input data\source_clips\sy
 scripts\generate_corruption_example.cmd music_mood_swap --input data\source_clips\synthetic\music_00.wav --output data\corrupted\examples\music_mood_swap.wav --original-valence 0.2 --original-energy 0.8 --original-tempo-bpm 90 --mood-distance 0.8
 ```
 
-Each command also writes a sibling JSON file containing the corruption metadata.
+## Manifest Format
 
-## Gemini Input Mode
-- If a variant has real video context, Gemini receives a base64 `video_url` MP4 payload.
-- If no video is available, Gemini falls back to `input_audio` WAV.
+Each manifest record can be JSONL, JSON, or CSV. Minimum useful shape:
 
-## Outputs
-- `outputs/tasks_and_rubrics.tsv`: per-variant results, two rows per variant
-- `outputs/comparison_report.json`: comparator summary
-- `outputs/plots/`: severity and tier plots
-- `logs/latest_judge_scores.jsonl`: one JSON record per model score, including full Gemini responses when available
+```json
+{
+  "clip_id": "ava_example_0001",
+  "video_path": "data/raw_videos/ava/example.mp4",
+  "start_s": 12.0,
+  "end_s": 20.0,
+  "clip_type": "speech",
+  "caption": "A speaker talks to camera."
+}
+```
+
+Optional fields used by some seeds:
+
+- `event_timestamps_s`: needed for `S3`
+- `mood`: used for `S5`
+- dataset-specific metadata such as active-speaker timestamps
+
+## Tests
+
+Run the corruption unit tests:
+
+```cmd
+cd /d F:\philo_lab\audio-eval
+python -m unittest discover -s tests -v
+```
 
 ## Notes
-- Mock mode is first-class and keeps the repo runnable without network access.
-- Synthetic mode remains the default fallback when no dataset clips are prepared.
-- Corruption modules still operate on WAV audio; for real-video clips the runner remuxes corrupted audio back onto MP4 before Gemini scoring.
+
+- synthetic mode is the default fallback if no real clips are available
+- corruption functions operate on WAV audio
+- for real-video clips, the runner remuxes corrupted audio back onto MP4 before multimodal scoring
+- `SignalScorer` is implemented as a real signal baseline for `S1` to `S4`

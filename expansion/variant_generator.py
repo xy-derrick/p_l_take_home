@@ -35,7 +35,7 @@ class TaskVariant:
     is_clean: bool = False
 
     def has_visual_context(self) -> bool:
-        """Whether the variant has meaningful video context for Gemini."""
+        """Whether the variant has meaningful video context for the language model."""
         return bool(self.source_video_path and self.visual_context_available)
 
 

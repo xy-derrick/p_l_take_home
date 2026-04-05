@@ -136,7 +136,7 @@ def cmd_run(args):
     runner.run_all()
 
     print("\nRunning model comparison analysis...")
-    comparator = ModelComparator(runner.variants, runner.signal_results, runner.gemini_results)
+    comparator = ModelComparator(runner.variants, runner.signal_results, runner.language_model_results)
     comparator.run_all()
     _export_report_artifacts(seed_filter)
 
@@ -167,7 +167,7 @@ def cmd_replay_from_log(args):
     if not input_path.is_absolute():
         input_path = (Path.cwd() / input_path).resolve()
 
-    variants, signal_results, gemini_results = load_replay_bundle(input_path)
+    variants, signal_results, language_model_results = load_replay_bundle(input_path)
     prefix = derive_log_prefix(input_path)
 
     output_dir = Path(args.output_dir).expanduser() if args.output_dir else input_path.parent
@@ -179,12 +179,12 @@ def cmd_replay_from_log(args):
     report_path = output_dir / f"{prefix}_comparison_report.json"
     plot_prefix = f"{prefix}_"
 
-    aggregate_results(variants, signal_results, gemini_results, output_path=str(tsv_path))
+    aggregate_results(variants, signal_results, language_model_results, output_path=str(tsv_path))
 
     comparator = ModelComparator(
         variants,
         signal_results,
-        gemini_results,
+        language_model_results,
         report_path=str(report_path),
         plots_dir=str(output_dir),
         plot_prefix=plot_prefix,

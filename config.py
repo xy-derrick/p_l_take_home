@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 
 # Load .env file if present
@@ -12,8 +13,18 @@ if _env_path.exists():
 
 # API Configuration
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
-GEMINI_MODEL = "google/gemini-2.5-flash"
+MODEL = os.environ.get("MODEL") or os.environ.get("GEMINI_MODEL") or "google/gemini-2.5-flash"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+
+def _model_identifier(value: str) -> str:
+    """Normalize a model name into a filesystem/report friendly identifier."""
+    identifier = re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
+    return identifier or "model"
+
+
+MODEL_ID = _model_identifier(MODEL)
+MODEL_LABEL = os.environ.get("MODEL_LABEL", MODEL)
 
 # Paths
 PROJECT_ROOT = Path(__file__).resolve().parent

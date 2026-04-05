@@ -5,16 +5,16 @@ from __future__ import annotations
 import csv
 import os
 
-from config import OUTPUT_TSV
+from config import MODEL_ID, OUTPUT_TSV
 
 
 def aggregate_results(
     variants: list,
     signal_results: dict,
-    gemini_results: dict,
+    language_model_results: dict,
     output_path: str | None = None,
 ) -> list[dict]:
-    """Combine signal and Gemini scores into a flat TSV table."""
+    """Combine signal and language-model scores into a flat TSV table."""
     if output_path is None:
         output_path = OUTPUT_TSV
 
@@ -49,7 +49,7 @@ def aggregate_results(
         gt_label = "clean" if variant.is_clean else corruption_type
         description = f"{variant.seed_id}: {corruption_type} on {variant.source_dataset}/{variant.source_clip_name}"
 
-        for model_name, results in [("signal_pipeline", signal_results), ("gemini_2_5_flash", gemini_results)]:
+        for model_name, results in [("signal_pipeline", signal_results), (MODEL_ID, language_model_results)]:
             scores = results.get(variant.task_id, {})
             rows.append(
                 {

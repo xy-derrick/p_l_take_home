@@ -12,14 +12,14 @@ import numpy as np
 import soundfile as sf
 from tqdm import tqdm
 
-from config import CORRUPTED_ROOT, LOGS_ROOT, OUTPUT_TSV, SFX_LIBRARY_ROOT, ensure_runtime_dirs
+from config import CORRUPTED_ROOT, LOGS_ROOT, MODEL_ID, OUTPUT_TSV, SFX_LIBRARY_ROOT, ensure_runtime_dirs
 from corruption import CORRUPTION_FUNCTIONS
 from corruption.speaker_swap import _estimate_dominant_freq
 from data.media_utils import remux_audio_to_video
 from data.source_loader import load_source_clips, summarize_clips
 from expansion.variant_generator import TaskVariant, generate_cross_pillar_variants, generate_variants
 from scoring.aggregator import aggregate_results
-from scoring.gemini_scorer import GeminiScorer
+from scoring.language_model_scorer import LanguageModelScorer
 from scoring.signal_scorer import SignalScorer
 from seeds.seed_tasks import SEED_TASKS
 from utils import safe_slug, stable_int_seed
@@ -44,10 +44,10 @@ class EvaluationRunner:
         self.limit_per_dataset = limit_per_dataset
         self.reuse_corrupted = reuse_corrupted
         self.signal_scorer = SignalScorer()
-        self.gemini_scorer = GeminiScorer(force_mock=force_mock)
+        self.language_model_scorer = LanguageModelScorer(force_mock=force_mock)
         self.variants: list[TaskVariant] = []
         self.signal_results: dict[str, dict] = {}
-        self.gemini_results: dict[str, dict] = {}
+        self.language_model_results: dict[str, dict] = {}
         self.score_log_path: Path | None = None
         self.latest_score_log_path: Path | None = None
 
@@ -89,7 +89,7 @@ class EvaluationRunner:
         self._score_all()
 
         print("\n[5/5] Aggregating results...")
-        rows = aggregate_results(self.variants, self.signal_results, self.gemini_results)
+        rows = aggregate_results(self.variants, self.signal_results, self.language_model_results)
         if self.score_log_path is not None:
             print(f"Detailed judge scores saved to {self.score_log_path}")
         if self.latest_score_log_path is not None:
@@ -428,9 +428,9 @@ class EvaluationRunner:
                 score_handle.write(payload + "\n")
                 latest_handle.write(payload + "\n")
 
-                gemini_scores = self.gemini_scorer.score_variant(variant)
-                self.gemini_results[variant.task_id] = gemini_scores
-                gemini_entry = self._score_log_entry(variant, "gemini_2_5_flash", gemini_scores)
-                payload = json.dumps(gemini_entry, ensure_ascii=True)
+                language_model_scores = self.language_model_scorer.score_variant(variant)
+                self.language_model_results[variant.task_id] = language_model_scores
+                language_model_entry = self._score_log_entry(variant, MODEL_ID, language_model_scores)
+                payload = json.dumps(language_model_entry, ensure_ascii=True)
                 score_handle.write(payload + "\n")
                 latest_handle.write(payload + "\n")

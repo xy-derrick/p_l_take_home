@@ -30,7 +30,7 @@ def load_replay_bundle(log_path: str | Path) -> tuple[list[TaskVariant], dict[st
 
     variants_by_task: dict[str, TaskVariant] = {}
     signal_results: dict[str, dict] = {}
-    gemini_results: dict[str, dict] = {}
+    language_model_results: dict[str, dict] = {}
 
     with path.open("r", encoding="utf-8") as handle:
         for line_number, raw_line in enumerate(handle, start=1):
@@ -54,9 +54,9 @@ def load_replay_bundle(log_path: str | Path) -> tuple[list[TaskVariant], dict[st
             if model_name.startswith("signal"):
                 signal_results[task_id] = scores
             else:
-                gemini_results[task_id] = scores
+                language_model_results[task_id] = scores
 
-    return list(variants_by_task.values()), signal_results, gemini_results
+    return list(variants_by_task.values()), signal_results, language_model_results
 
 
 def _variant_from_entry(entry: dict) -> TaskVariant:
