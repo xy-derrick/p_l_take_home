@@ -1,0 +1,200 @@
+{
+  "per_seed_accuracy": {
+    "S3": {
+      "signal": {
+        "accuracy": 0.1111111111111111,
+        "easy": 0.3333333333333333,
+        "medium": 0.0,
+        "hard": 0.0
+      },
+      "gemini": {
+        "accuracy": 0.3111111111111111,
+        "easy": 0.4666666666666667,
+        "medium": 0.16,
+        "hard": 0.30666666666666664
+      },
+      "total": 225
+    }
+  },
+  "tier_performance": {
+    "tier_1": {
+      "signal_accuracy": 0.1111111111111111,
+      "gemini_accuracy": 0.3111111111111111,
+      "n_variants": 225
+    }
+  },
+  "divergence_matrix": {
+    "both_correct": {
+      "count": 20,
+      "examples": [
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-49-06_denoised_thumb_00_clean",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "easy"
+        },
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-49-06_mic_00_clean",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "easy"
+        },
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-56-35_denoised_00_clean",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "easy"
+        },
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-56-35_mic_00_clean",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "easy"
+        },
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-58-57_denoised_00_clean",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "easy"
+        }
+      ]
+    },
+    "both_wrong": {
+      "count": 150,
+      "examples": [
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-49-06_denoised_00_shift_ms50",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "hard"
+        },
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-49-06_denoised_00_shift_ms100",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "hard"
+        },
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-49-06_denoised_00_shift_ms200",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "hard"
+        },
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-49-06_denoised_00_shift_ms500",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "medium"
+        },
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-49-06_denoised_00_shift_ms1000",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "medium"
+        }
+      ]
+    },
+    "signal_advantage": {
+      "count": 5,
+      "examples": [
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-49-06_denoised_00_clean",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "easy"
+        },
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-56-35_denoised_thumb_00_clean",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "easy"
+        },
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-17-27-53_denoised_00_clean",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "easy"
+        },
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-17-27-53_mic_00_clean",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "easy"
+        },
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-17-32-18_denoised_00_clean",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "easy"
+        }
+      ]
+    },
+    "gemini_advantage": {
+      "count": 50,
+      "examples": [
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-49-06_denoised_thumb_00_shift_ms50",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "hard"
+        },
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-49-06_denoised_thumb_00_shift_ms200",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "hard"
+        },
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-49-06_denoised_thumb_00_shift_ms750",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "medium"
+        },
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-49-06_mic_00_shift_ms50",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "hard"
+        },
+        {
+          "task_id": "S3_greatest_hits_greatest_hits_2015-02-16-16-49-06_mic_00_shift_ms2000",
+          "seed_id": "S3",
+          "tier": 1,
+          "difficulty": "easy"
+        }
+      ]
+    }
+  },
+  "difficulty_calibration": {
+    "S3_signal_easy": {
+      "pass_rate": 0.0,
+      "n": 50,
+      "in_discriminating_band": false
+    },
+    "S3_signal_medium": {
+      "pass_rate": 0.0,
+      "n": 75,
+      "in_discriminating_band": false
+    },
+    "S3_signal_hard": {
+      "pass_rate": 0.0,
+      "n": 75,
+      "in_discriminating_band": false
+    },
+    "S3_gemini_easy": {
+      "pass_rate": 0.3,
+      "n": 50,
+      "in_discriminating_band": false
+    },
+    "S3_gemini_medium": {
+      "pass_rate": 0.16,
+      "n": 75,
+      "in_discriminating_band": false
+    },
+    "S3_gemini_hard": {
+      "pass_rate": 0.30666666666666664,
+      "n": 75,
+      "in_discriminating_band": false
+    }
+  }
+}

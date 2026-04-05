@@ -12,7 +12,6 @@ data/source_clips/
 data/corrupted/
 data/sfx_library/
 data/raw_videos/
-outputs/
 report/*.pdf
 report/*.aux
 report/*.log
