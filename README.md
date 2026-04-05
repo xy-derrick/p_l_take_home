@@ -306,18 +306,22 @@ post-experiment audit of the codebase and report, identifying three concrete iss
 (duplicate severity level in S3, wrong VLM modality description in the report, stale
 divergence count) that Claude Code then patched.
 
-**Communication between agents was entirely through shared artifacts** — there was no
-direct agent-to-agent channel. The workflow was:
+**The human was the communication bridge between agents.** There was no direct
+agent-to-agent channel. The coordination loop was:
 
 1. Claude Code produces code → committed to git
 2. Codex reads the git repo, runs the pipeline, saves result files → committed to git
 3. Codex reads result files + source code → produces a structured findings report
-4. Claude Code reads the findings report → patches code and report
+4. **The user copies Codex's findings and pastes them into the Claude Code session**
+5. Claude Code reviews the findings and patches code and report
+6. Changes committed → Codex can read them on the next pass
 
-The spec file (`claude_code_prompt.md`) served as the shared ground truth that both
-agents referenced independently. The git repository was the shared workspace. Neither
-agent knew the other existed — they communicated only through the artifacts each left
-behind.
+The critical step is 4: the user manually copy-pasted Codex's audit output directly
+into Claude Code's context and asked it to review and act on the findings. This is the
+simplest possible inter-agent communication pattern — no orchestration framework, no
+shared memory system, just a human relaying outputs between two independent chat
+sessions. The spec file (`claude_code_prompt.md`) served as the shared ground truth
+both agents referenced independently, and the git repository was the shared workspace.
 
 ## Notes
 
