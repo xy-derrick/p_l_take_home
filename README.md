@@ -328,7 +328,7 @@ both agents referenced independently, and the git repository was the shared work
 The `data/little_test/` folder contains a single real-world clip used to validate the
 model scorer outside the benchmark pipeline:
 
-**Source:** 华强买西瓜 ("Huaqiang Buys a Watermelon"), a popular skit from Bilibili.  
+**Source:** 华强买瓜AI配音 ("Huaqiang Buys a Watermelon"), a popular skit from Bilibili.  
 **File:** `37269210935-1-192.mp4`  
 **Script:** `score_mp4.py` — sends the original MP4 directly to Gemini 2.5 Flash and
 evaluates it against each seed task's rubric prompt. No corruption is applied; the
