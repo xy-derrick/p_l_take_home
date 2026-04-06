@@ -1,0 +1,19 @@
+{
+  "clip_id": "greatest_hits_2015-02-16-17-02-05_denoised_00",
+  "video_path": "data\\raw_videos\\greatest_hits\\lowres\\vis-data-256\\2015-02-16-17-02-05_denoised.mp4",
+  "start_s": 0.0,
+  "end_s": 6.0,
+  "clip_type": "sfx",
+  "caption": "Greatest Hits impact clip from 2015-02-16-17-02-05_denoised",
+  "dataset": "greatest_hits",
+  "name": "greatest_hits_2015-02-16-17-02-05_denoised_00",
+  "type": "sfx",
+  "path": "F:\\philo_lab\\audio-eval\\data\\source_clips\\greatest_hits\\greatest_hits_2015-02-16-17-02-05_denoised_00.wav",
+  "source_audio_path": "F:\\philo_lab\\audio-eval\\data\\source_clips\\greatest_hits\\greatest_hits_2015-02-16-17-02-05_denoised_00.wav",
+  "source_video_path": "F:\\philo_lab\\audio-eval\\data\\source_clips\\greatest_hits\\greatest_hits_2015-02-16-17-02-05_denoised_00.mp4",
+  "metadata_path": "F:\\philo_lab\\audio-eval\\data\\source_clips\\greatest_hits\\greatest_hits_2015-02-16-17-02-05_denoised_00.json",
+  "duration_s": 6.0,
+  "segment_start_s": 0.0,
+  "segment_end_s": 6.0,
+  "visual_context_available": true
+}

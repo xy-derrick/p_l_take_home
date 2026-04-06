@@ -1,0 +1,20 @@
+{
+  "clip_id": "ava_0f39OWEqJ24_0954450_clean_speech",
+  "video_path": "data\\raw_videos\\ava\\videos\\0f39OWEqJ24.mp4",
+  "start_s": 954.45,
+  "end_s": 956.54,
+  "clip_type": "speech",
+  "ava_speech_label": "CLEAN_SPEECH",
+  "caption": "AVA clean_speech clip from 0f39OWEqJ24",
+  "dataset": "ava",
+  "name": "ava_0f39OWEqJ24_0954450_clean_speech",
+  "type": "speech",
+  "path": "F:\\philo_lab\\audio-eval\\data\\source_clips\\ava\\ava_0f39OWEqJ24_0954450_clean_speech.wav",
+  "source_audio_path": "F:\\philo_lab\\audio-eval\\data\\source_clips\\ava\\ava_0f39OWEqJ24_0954450_clean_speech.wav",
+  "source_video_path": "F:\\philo_lab\\audio-eval\\data\\source_clips\\ava\\ava_0f39OWEqJ24_0954450_clean_speech.mp4",
+  "metadata_path": "F:\\philo_lab\\audio-eval\\data\\source_clips\\ava\\ava_0f39OWEqJ24_0954450_clean_speech.json",
+  "duration_s": 2.089999999999918,
+  "segment_start_s": 954.45,
+  "segment_end_s": 956.54,
+  "visual_context_available": true
+}
