@@ -1,0 +1,6 @@
+task_id	seed_id	dataset	task_description	source_clip	visual_context	audio_pillar	tier	corruption_type	corruption_severity	model	av_sync_score	artifact_quality_score	speaker_consistency_score	semantic_match_score	music_coherence_score	detection_correct	ground_truth_label
+S1_little_test_37269210935-1-192	S1	little_test	S1: apply_sync_shift on little_test/37269210935-1-192.mp4	37269210935-1-192	True	voice	1	apply_sync_shift	offset_ms=200	gemini_2_5_flash	5	5	5	5	5	False	sync_shift
+S2_little_test_37269210935-1-192	S2	little_test	S2: apply_speaker_swap on little_test/37269210935-1-192.mp4	37269210935-1-192	True	voice	2	apply_speaker_swap	swap_point_s=5.0	gemini_2_5_flash	5	5	1	5	5	True	speaker_swap
+S3_little_test_37269210935-1-192	S3	little_test	S3: apply_sfx_mistime on little_test/37269210935-1-192.mp4	37269210935-1-192	True	sfx	1	apply_sfx_mistime	shift_ms=200	gemini_2_5_flash	3	5	5	5	5	True	sfx_mistime
+S4_little_test_37269210935-1-192	S4	little_test	S4: inject_artifacts on little_test/37269210935-1-192.mp4	37269210935-1-192	True	voice	1	inject_artifacts	artifact_type=click	gemini_2_5_flash	5	5	5	5	5	False	artifacts
+S5_little_test_37269210935-1-192	S5	little_test	S5: apply_music_mood_swap on little_test/37269210935-1-192.mp4	37269210935-1-192	True	music	3	apply_music_mood_swap	mood_distance=0.8	gemini_2_5_flash	5	5	5	5	4	True	music_mood_swap

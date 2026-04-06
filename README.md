@@ -323,6 +323,32 @@ shared memory system, just a human relaying outputs between two independent chat
 sessions. The spec file (`claude_code_prompt.md`) served as the shared ground truth
 both agents referenced independently, and the git repository was the shared workspace.
 
+## Ad-hoc Scoring: `data/little_test/`
+
+The `data/little_test/` folder contains a single real-world clip used to validate the
+model scorer outside the benchmark pipeline:
+
+**Source:** 华强买西瓜 ("Huaqiang Buys a Watermelon"), a popular skit from Bilibili.  
+**File:** `37269210935-1-192.mp4`  
+**Script:** `score_mp4.py` — sends the original MP4 directly to Gemini 2.5 Flash and
+evaluates it against each seed task's rubric prompt. No corruption is applied; the
+original video is scored as-is.
+
+**Results (`rubric_eval.tsv`):**
+
+| Seed | Task | av_sync | artifact | speaker | semantic | music | detected |
+|------|------|---------|----------|---------|----------|-------|----------|
+| S1 | Sync Drift | 5 | 5 | 5 | 5 | 5 | False |
+| S2 | Speaker Swap | 5 | 5 | **1** | 5 | 5 | **True** |
+| S3 | SFX Mistime | **3** | 5 | 5 | 5 | 5 | **True** |
+| S4 | Artifact Inject | 5 | 5 | 5 | 5 | 5 | False |
+| S5 | Music Mood | 5 | 5 | 5 | 5 | 4 | True |
+
+Notable findings: Gemini flagged `speaker_consistency=1` under S2 (the skit has multiple
+characters with distinct voices, triggering the speaker-change detector) and `av_sync=3`
+under S3 (SFX timing in the original is judged as only moderately aligned). S5 fell back
+to mock due to a transient 502 from OpenRouter.
+
 ## Notes
 
 - synthetic mode is the default fallback if no real clips are available
